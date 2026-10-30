@@ -1,3 +1,4 @@
+import { Wrench, Flame, Droplets, Zap, Waves, Brush, ClipboardCheck, Building2, FolderOpen, FileSignature, FileText, Camera, Receipt, Ruler, Users, Folder } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
 
 export const SUPABASE_URL = 'https://ldpyktbiljlapcljtrnh.supabase.co';
@@ -26,14 +27,14 @@ export const KATEGORIJE = [
   'kanalizacija', 'hišniška opravila', 'pregled', 'upravljanje', 'administracija',
 ];
 export const KAT_IKONA = {
-  'vzdrževanje': '🔧', 'kurilne naprave': '🔥', 'strojne inštalacije': '🚰', 'elektro inštalacije': '⚡',
-  'kanalizacija': '🕳️', 'hišniška opravila': '🧹', 'pregled': '📋', 'upravljanje': '🏢', 'administracija': '🗂️',
+  'vzdrževanje': Wrench, 'kurilne naprave': Flame, 'strojne inštalacije': Droplets, 'elektro inštalacije': Zap,
+  'kanalizacija': Waves, 'hišniška opravila': Brush, 'pregled': ClipboardCheck, 'upravljanje': Building2, 'administracija': FolderOpen,
 };
 export const VIRI = ['telefon', 'e-pošta', 'osebno', 'redni pregled', 'interno'];
 export const MAPE = ['Pogodbe', 'Zapisniki in poročila', 'Fotografije s terena', 'Računi in ponudbe', 'Tehnična dokumentacija', 'Zbori lastnikov', 'Drugo'];
 export const MAPA_IKONA = {
-  'Pogodbe': '📑', 'Zapisniki in poročila': '📝', 'Fotografije s terena': '📷', 'Računi in ponudbe': '💶',
-  'Tehnična dokumentacija': '📐', 'Zbori lastnikov': '👥', 'Drugo': '📁',
+  'Pogodbe': FileSignature, 'Zapisniki in poročila': FileText, 'Fotografije s terena': Camera, 'Računi in ponudbe': Receipt,
+  'Tehnična dokumentacija': Ruler, 'Zbori lastnikov': Users, 'Drugo': Folder,
 };
 
 export const danes = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; };

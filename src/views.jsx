@@ -3,7 +3,8 @@ import {
   sb, STATUSI, AKTIVNI, PRIORITETE, KATEGORIJE, MAPE, MAPA_IKONA, KAT_IKONA,
   fDatum, fDatumKratko, fUra, fRelativno, fVelikost, fMinute, isoDan, danes, zamuja, rokDanes, dniDo, sortNaloge, varnoIme, mapsUrl,
 } from './lib.js';
-import { useData, Status, Prio, Kat, Avatar, Prazno, Kartica, Modal, Polje } from './ui.jsx';
+import { useData, Status, Prio, Kat, Avatar, Prazno, Kartica, Modal, Polje, KatIk, MapaIk } from './ui.jsx';
+import { CalendarDays, Clock, AlertTriangle, HardHat, Flame, History, List, Columns3, Search, Euro, Check, MapPin, Phone, Mail, User, Hand, Play, Coffee, ChevronLeft, ChevronRight, Building2, Home, Building, Inbox, Pencil, Archive, Image as ImageIk, FileText, Trash2, FolderOpen, ArrowRight, Plus, Upload, Sun, PhoneCall } from 'lucide-react';
 import { Datoteke, odpriDatoteko } from './naloga.jsx';
 
 /* ---------- Vrstica naloga ---------- */
@@ -16,9 +17,9 @@ export function NalogaVrstica({ n, kompaktno }) {
       <div className="nv-glavno">
         <div className="nv-naslov"><span className="st-naloga">#{n.id}</span> {n.naslov}</div>
         <div className="nv-meta">
-          <span>{KAT_IKONA[n.kategorija]} {obj ? obj.naziv : 'Splošno'}</span>
-          {n.rok && <span className={zamuja(n) ? 'rdece' : rokDanes(n) ? 'oranzno' : ''}>📅 {zamuja(n) ? 'zamuja · ' : rokDanes(n) ? 'danes · ' : ''}{fDatumKratko(n.rok)}</span>}
-          {n.termin && <span>🕘 {fDatumKratko(n.termin)} {fUra(n.termin)}</span>}
+          <span><KatIk k={n.kategorija} s={13} /> {obj ? obj.naziv : 'Splošno'}</span>
+          {n.rok && <span className={zamuja(n) ? 'rdece' : rokDanes(n) ? 'oranzno' : ''}><CalendarDays size={13} className="ik" /> {zamuja(n) ? 'zamuja · ' : rokDanes(n) ? 'danes · ' : ''}{fDatumKratko(n.rok)}</span>}
+          {n.termin && <span><Clock size={13} className="ik" /> {fDatumKratko(n.termin)} {fUra(n.termin)}</span>}
         </div>
       </div>
       <div className="nv-desno">
@@ -32,7 +33,7 @@ export function NalogaVrstica({ n, kompaktno }) {
 
 /* ---------- PREGLED (nadzorna plošča) ---------- */
 export function Pregled() {
-  const { naloge, profili, naprave, objekti, me, novaNaloga, pojdi } = useData();
+  const { naloge, profili, naprave, objekti, me, novaNaloga, hitriVnos, pojdi } = useData();
   const aktivne = naloge.filter((n) => AKTIVNI.includes(n.status));
   const nujne = aktivne.filter((n) => n.prioriteta === 'nujno');
   const zamujene = aktivne.filter(zamuja);
@@ -49,7 +50,10 @@ export function Pregled() {
     <div className="stran">
       <div className="stran-glava">
         <div><h1>{pozdrav}, {me.ime.split(' ')[0]}</h1><p className="podnaslov">{new Date().toLocaleDateString('sl-SI', { weekday: 'long', day: 'numeric', month: 'long' })} · {aktivne.length} aktivnih nalogov</p></div>
-        <button className="gumb primarni" onClick={() => novaNaloga()}>+ Nov nalog</button>
+        <div className="glava-desno">
+          <button className="gumb" onClick={() => novaNaloga()}><Plus size={16} /> Nov nalog</button>
+          <button className="gumb primarni" onClick={() => hitriVnos()}><PhoneCall size={16} /> Hiter vnos klica</button>
+        </div>
       </div>
 
       <div className="kpi-vrsta">
@@ -60,12 +64,12 @@ export function Pregled() {
       </div>
 
       <div className="mreza-2">
-        <Kartica naslov="⚠ Zahteva pozornost" desno={<a onClick={() => pojdi('naloge')}>Vse naloge →</a>}>
+        <Kartica naslov={<><AlertTriangle size={16} className="ik rdeca-ik" /> Zahteva pozornost</>} desno={<a onClick={() => pojdi('naloge')}>Vse naloge <ArrowRight size={13} className="ik" /></a>}>
           {[...new Set([...nujne, ...zamujene, ...nedodeljene])].sort(sortNaloge).slice(0, 7).map((n) => <NalogaVrstica key={n.id} n={n} />)}
           {!nujne.length && !zamujene.length && !nedodeljene.length && <Prazno>Vse je pod nadzorom.</Prazno>}
         </Kartica>
 
-        <Kartica naslov="👷 Obremenitev terenske ekipe" desno={<a onClick={() => pojdi('plan')}>Tedenski plan →</a>}>
+        <Kartica naslov={<><HardHat size={16} className="ik" /> Obremenitev terenske ekipe</>} desno={<a onClick={() => pojdi('plan')}>Tedenski plan <ArrowRight size={13} className="ik" /></a>}>
           <div className="ekipa-obremenitev">
             {teren.map((p) => {
               const moje = aktivne.filter((n) => n.dodeljeno_id === p.id);
@@ -76,7 +80,7 @@ export function Pregled() {
                   <Avatar p={p} size={38} />
                   <div className="delavec-info">
                     <b>{p.ime}</b><small>{p.delovno_mesto}</small>
-                    <div className="trenutno">{vTeku ? <>🟠 Zdaj: {vTeku.naslov}{obj ? ` (${obj.naziv})` : ''}</> : <span className="sivo">Ni naloga v teku</span>}</div>
+                    <div className="trenutno">{vTeku ? <><span className="pika-oranzna" />Zdaj: {vTeku.naslov}{obj ? ` (${obj.naziv})` : ''}</> : <span className="sivo">Ni naloga v teku</span>}</div>
                   </div>
                   <div className="delavec-st" onClick={() => pojdi('naloge', { dodeljeno: p.id })}>
                     <b>{moje.length}</b><small>odprtih</small>
@@ -88,7 +92,7 @@ export function Pregled() {
           </div>
         </Kartica>
 
-        <Kartica naslov="🔥 Pregledi naprav (30 dni)" desno={<a onClick={() => pojdi('naprave')}>Vse naprave →</a>}>
+        <Kartica naslov={<><Flame size={16} className="ik" /> Pregledi naprav (30 dni)</>} desno={<a onClick={() => pojdi('naprave')}>Vse naprave <ArrowRight size={13} className="ik" /></a>}>
           {pregledi.length ? (
             <ul className="seznam-pregledov">
               {pregledi.map((x) => {
@@ -104,7 +108,7 @@ export function Pregled() {
           ) : <Prazno>V naslednjih 30 dneh ni pregledov.</Prazno>}
         </Kartica>
 
-        <Kartica naslov="🕘 Nedavne spremembe">
+        <Kartica naslov={<><History size={16} className="ik" /> Nedavne spremembe</>}>
           {zadnje.map((n) => <NalogaVrstica key={n.id} n={n} />)}
         </Kartica>
       </div>
@@ -151,15 +155,15 @@ export function Naloge({ filterZacetni = {} }) {
         <div><h1>Delovni nalogi</h1><p className="podnaslov">{filtrirane.length} prikazanih</p></div>
         <div className="glava-desno">
           <div className="segment">
-            <button className={pogled === 'seznam' ? 'on' : ''} onClick={() => setPogled('seznam')}>☰ Seznam</button>
-            <button className={pogled === 'tabla' ? 'on' : ''} onClick={() => setPogled('tabla')}>▦ Tabla</button>
+            <button className={pogled === 'seznam' ? 'on' : ''} onClick={() => setPogled('seznam')}><List size={15} className="ik" /> Seznam</button>
+            <button className={pogled === 'tabla' ? 'on' : ''} onClick={() => setPogled('tabla')}><Columns3 size={15} className="ik" /> Tabla</button>
           </div>
-          <button className="gumb primarni" onClick={() => novaNaloga()}>+ Nov nalog</button>
+          <button className="gumb primarni" onClick={() => novaNaloga()}><Plus size={16} /> Nov nalog</button>
         </div>
       </div>
 
       <div className="filtri">
-        <input className="iskanje" placeholder="🔍 Išči po naslovu, objektu, prijavitelju, št. naloga …" value={f.iskanje} onChange={set('iskanje')} />
+        <input className="iskanje" placeholder="Išči po naslovu, objektu, prijavitelju, št. naloga …" value={f.iskanje} onChange={set('iskanje')} />
         {pogled === 'seznam' && (
           <select value={f.status} onChange={set('status')}>
             <option value="aktivne">Aktivne</option><option value="vse">Vse</option>
@@ -196,18 +200,18 @@ export function Naloge({ filterZacetni = {} }) {
                   return (
                     <tr key={n.id} onClick={() => odpriNalogo(n.id)} className={zamuja(n) ? 'zamuja' : ''}>
                       <td className="st-naloga">#{n.id}</td>
-                      <td><b>{n.naslov}</b><div className="pod">{KAT_IKONA[n.kategorija]} {n.kategorija}{n.za_racun ? ' · 💶' : ''}</div></td>
+                      <td><b>{n.naslov}</b><div className="pod"><KatIk k={n.kategorija} s={12} /> {n.kategorija}{n.za_racun && <> · <Euro size={12} className="ik" /></>}</div></td>
                       <td>{o?.naziv || <span className="sivo">–</span>}</td>
                       <td><Status s={n.status} /></td>
                       <td><Prio p={n.prioriteta} /></td>
-                      <td className={zamuja(n) ? 'rdece' : ''}>{n.status === 'opravljena' ? <span className="sivo">✓ {fDatumKratko(n.opravljeno_at)}</span> : fDatum(n.rok)}</td>
+                      <td className={zamuja(n) ? 'rdece' : ''}>{n.status === 'opravljena' ? <span className="sivo"><Check size={13} className="ik" /> {fDatumKratko(n.opravljeno_at)}</span> : fDatum(n.rok)}</td>
                       <td>{p ? <span className="oseba"><Avatar p={p} size={22} /> {p.ime.split(' ')[0]}</span> : <span className="sivo">–</span>}</td>
                     </tr>
                   );
                 })}
               </tbody>
             </table>
-          ) : <Prazno ikona="🔍">Ni nalogov, ki ustrezajo filtrom.</Prazno>}
+          ) : <Prazno ikona={Search}>Ni nalogov, ki ustrezajo filtrom.</Prazno>}
         </div>
       ) : (
         <Tabla naloge={filtrirane} />
@@ -261,6 +265,9 @@ export function Moje() {
   const prosto = naloge.filter((n) => !n.dodeljeno_id && AKTIVNI.includes(n.status)).sort(sortNaloge);
   const opravljeno = moje.filter((n) => n.status === 'opravljena').sort((a, b) => b.opravljeno_at.localeCompare(a.opravljeno_at)).slice(0, 15);
   const seznam = { danes: zaDanes, kasneje, prosto, opravljeno }[zavihek];
+  const opravljenoDanes = moje.filter((n) => n.status === 'opravljena' && isoDan(n.opravljeno_at) === danesIso).length;
+  const skupajDanes = zaDanes.length + opravljenoDanes;
+  const odstotek = skupajDanes ? Math.round((opravljenoDanes / skupajDanes) * 100) : 0;
 
   const hitro = async (e, n, status) => {
     e.stopPropagation();
@@ -271,9 +278,18 @@ export function Moje() {
   return (
     <div className="stran teren">
       <div className="stran-glava">
-        <div><h1>Moje naloge</h1><p className="podnaslov">{aktivne.length} odprtih · {opravljeno.filter((n) => isoDan(n.opravljeno_at) === danesIso).length} opravljenih danes</p></div>
-        <button className="gumb" onClick={() => novaNaloga({ dodeljeno_id: me.id, vir: 'osebno' })}>+ Prijavi okvaro</button>
+        <div><h1>Moje naloge</h1><p className="podnaslov">{new Date().toLocaleDateString('sl-SI', { weekday: 'long', day: 'numeric', month: 'long' })} · {aktivne.length} odprtih</p></div>
+        <button className="gumb" onClick={() => novaNaloga({ dodeljeno_id: me.id, vir: 'osebno' })}><Plus size={16} /> Prijavi okvaro</button>
       </div>
+      {skupajDanes > 0 && (
+        <div className={'napredek' + (odstotek === 100 ? ' koncano' : '')}>
+          <div className="napredek-vrh">
+            <b>{odstotek === 100 ? <><Check size={16} className="ik" /> Vse današnje naloge so opravljene</> : <><Sun size={16} className="ik" /> Današnji napredek</>}</b>
+            <span><b>{opravljenoDanes}</b> od {skupajDanes} opravljenih</span>
+          </div>
+          <div className="napredek-crta"><i style={{ width: odstotek + '%' }} /></div>
+        </div>
+      )}
       <div className="zavihki">
         {[['danes', 'Za danes', zaDanes.length], ['kasneje', 'Kasneje', kasneje.length], ['prosto', 'Nedodeljeno', prosto.length], ['opravljeno', 'Opravljeno', null]].map(([k, l, c]) => (
           <button key={k} className={zavihek === k ? 'on' : ''} onClick={() => setZavihek(k)}>{l}{c != null && <span>{c}</span>}</button>
@@ -285,28 +301,28 @@ export function Moje() {
           return (
             <div key={n.id} className={'teren-kartica p-' + n.prioriteta + (zamuja(n) ? ' zamuja' : '')} onClick={() => odpriNalogo(n.id)}>
               <div className="tk-vrh"><Status s={n.status} /><Prio p={n.prioriteta} kratko />{zamuja(n) && <span className="prio prio-nujno">Zamuja</span>}<span className="st-naloga">#{n.id}</span></div>
-              <h3>{KAT_IKONA[n.kategorija]} {n.naslov}</h3>
-              {o && <div className="tk-naslov">📍 {o.naslov}, {o.kraj}</div>}
+              <h3><KatIk k={n.kategorija} s={17} /> {n.naslov}</h3>
+              {o && <div className="tk-naslov"><MapPin size={14} className="ik" /> {o.naslov}, {o.kraj}</div>}
               {n.opis && <p className="tk-opis">{n.opis}</p>}
               <div className="tk-meta">
-                {n.termin && <span>🕘 {fDatumKratko(n.termin)} ob {fUra(n.termin)}</span>}
-                {n.rok && <span>📅 rok {fDatumKratko(n.rok)}</span>}
-                {n.prijavitelj && <span>👤 {n.prijavitelj}</span>}
+                {n.termin && <span><Clock size={13} className="ik" /> {fDatumKratko(n.termin)} ob {fUra(n.termin)}</span>}
+                {n.rok && <span><CalendarDays size={13} className="ik" /> rok {fDatumKratko(n.rok)}</span>}
+                {n.prijavitelj && <span><User size={13} className="ik" /> {n.prijavitelj}</span>}
               </div>
               {zavihek !== 'opravljeno' && (
                 <div className="tk-gumbi" onClick={(e) => e.stopPropagation()}>
-                  {o && <a className="gumb" href={mapsUrl(o)} target="_blank" rel="noreferrer">📍 Pot</a>}
-                  {n.prijavitelj_kontakt && /^[\d +/]+$/.test(n.prijavitelj_kontakt) && <a className="gumb" href={'tel:' + n.prijavitelj_kontakt.replace(/\s/g, '')}>📞 Pokliči</a>}
-                  {zavihek === 'prosto' ? <button className="gumb primarni" onClick={(e) => hitro(e, n, 'prevzemi')}>✋ Prevzemi</button>
-                    : n.status !== 'v_teku' ? <button className="gumb primarni" onClick={(e) => hitro(e, n, 'v_teku')}>▶ Začni</button>
-                    : <button className="gumb uspeh" onClick={() => odpriNalogo(n.id)}>✓ Zaključi</button>}
+                  {o && <a className="gumb" href={mapsUrl(o)} target="_blank" rel="noreferrer"><MapPin size={16} /> Pot</a>}
+                  {n.prijavitelj_kontakt && /^[\d +/]+$/.test(n.prijavitelj_kontakt) && <a className="gumb" href={'tel:' + n.prijavitelj_kontakt.replace(/\s/g, '')}><Phone size={16} /> Pokliči</a>}
+                  {zavihek === 'prosto' ? <button className="gumb primarni" onClick={(e) => hitro(e, n, 'prevzemi')}><Hand size={16} /> Prevzemi</button>
+                    : n.status !== 'v_teku' ? <button className="gumb primarni" onClick={(e) => hitro(e, n, 'v_teku')}><Play size={16} /> Začni</button>
+                    : <button className="gumb uspeh" onClick={() => odpriNalogo(n.id)}><Check size={16} /> Zaključi</button>}
                 </div>
               )}
-              {zavihek === 'opravljeno' && <p className="tk-opis">✓ {fRelativno(n.opravljeno_at)} · {n.porocilo}</p>}
+              {zavihek === 'opravljeno' && <p className="tk-opis"><Check size={13} className="ik zeleno" /> {fRelativno(n.opravljeno_at)} · {n.porocilo}</p>}
             </div>
           );
         })}
-        {!seznam.length && <Prazno ikona={zavihek === 'danes' ? '☕' : '✓'}>{zavihek === 'danes' ? 'Za danes nimaš nalog.' : 'Nič ni tukaj.'}</Prazno>}
+        {!seznam.length && <Prazno ikona={zavihek === 'danes' ? Coffee : Check}>{zavihek === 'danes' ? 'Za danes nimaš nalog.' : 'Nič ni tukaj.'}</Prazno>}
       </div>
     </div>
   );
@@ -329,9 +345,9 @@ export function Plan() {
       <div className="stran-glava">
         <div><h1>Tedenski plan</h1><p className="podnaslov">Naloge po delavcih in dnevih (po terminu oz. roku)</p></div>
         <div className="segment">
-          <button onClick={() => setZamik(zamik - 1)}>‹</button>
+          <button onClick={() => setZamik(zamik - 1)}><ChevronLeft size={16} className="ik" /></button>
           <button className={zamik === 0 ? 'on' : ''} onClick={() => setZamik(0)}>Ta teden</button>
-          <button onClick={() => setZamik(zamik + 1)}>›</button>
+          <button onClick={() => setZamik(zamik + 1)}><ChevronRight size={16} className="ik" /></button>
         </div>
       </div>
       <div className="plan-ovoj">
@@ -383,16 +399,16 @@ export function Objekti({ izbran }) {
     <div className="stran">
       <div className="stran-glava">
         <div><h1>Objekti</h1><p className="podnaslov">{objekti.length} objektov v upravljanju</p></div>
-        <button className="gumb primarni" onClick={() => setNov(true)}>+ Nov objekt</button>
+        <button className="gumb primarni" onClick={() => setNov(true)}><Plus size={16} /> Nov objekt</button>
       </div>
-      <div className="filtri"><input className="iskanje" placeholder="🔍 Išči objekt ali naslov …" value={q} onChange={(e) => setQ(e.target.value)} /></div>
+      <div className="filtri"><input className="iskanje" placeholder="Išči objekt ali naslov …" value={q} onChange={(e) => setQ(e.target.value)} /></div>
       <div className="objekti-mreza">
         {v.map((o) => {
           const akt = naloge.filter((n) => n.objekt_id === o.id && AKTIVNI.includes(n.status));
           const up = profili.find((p) => p.id === o.upravnik_id);
           return (
             <div key={o.id} className="objekt-kartica" onClick={() => pojdi('objekti', null, o.id)}>
-              <div className="ok-ikona">{o.tip === 'poslovna' ? '🏢' : o.tip === 'enostanovanjska' ? '🏠' : '🏘️'}</div>
+              <div className="ok-ikona">{o.tip === 'poslovna' ? <Building2 size={24} /> : o.tip === 'enostanovanjska' ? <Home size={24} /> : <Building size={24} />}</div>
               <div className="ok-info">
                 <b>{o.naziv}</b><small>{o.naslov}, {o.kraj}</small>
                 <div className="ok-meta"><span>{o.tip}</span>{o.st_enot && <span>{o.st_enot} enot</span>}{up && <span>upravnik: {up.ime.split(' ')[0]}</span>}</div>
@@ -452,12 +468,12 @@ function ObjektPodrobno({ id }) {
 
   return (
     <div className="stran">
-      <a className="nazaj" onClick={() => pojdi('objekti')}>‹ Vsi objekti</a>
+      <a className="nazaj" onClick={() => pojdi('objekti')}><ChevronLeft size={15} className="ik" /> Vsi objekti</a>
       <div className="stran-glava">
-        <div><h1>{o.naziv}</h1><p className="podnaslov">{o.naslov}, {o.kraj} · <a href={mapsUrl(o)} target="_blank" rel="noreferrer">📍 zemljevid</a></p></div>
+        <div><h1>{o.naziv}</h1><p className="podnaslov">{o.naslov}, {o.kraj} · <a href={mapsUrl(o)} target="_blank" rel="noreferrer"><MapPin size={13} className="ik" /> zemljevid</a></p></div>
         <div className="glava-desno">
-          {me.vloga !== 'teren' && <button className="gumb" onClick={() => setUredi(true)}>✎ Uredi</button>}
-          <button className="gumb primarni" onClick={() => novaNaloga({ objekt_id: id })}>+ Nalog za ta objekt</button>
+          {me.vloga !== 'teren' && <button className="gumb" onClick={() => setUredi(true)}><Pencil size={15} /> Uredi</button>}
+          <button className="gumb primarni" onClick={() => novaNaloga({ objekt_id: id })}><Plus size={16} /> Nalog za ta objekt</button>
         </div>
       </div>
       <div className="mreza-objekt">
@@ -468,7 +484,7 @@ function ObjektPodrobno({ id }) {
           <Kartica naslov={`Zgodovina del (${opr.length})`} desno={<small className="sivo">skupaj {fMinute(ure)}</small>}>
             {(zgodovina ? opr : opr.slice(0, 5)).map((n) => <NalogaVrstica key={n.id} n={n} />)}
             {opr.length > 5 && <button className="gumb mali polna" onClick={() => setZgodovina(!zgodovina)}>{zgodovina ? 'Prikaži manj' : `Prikaži vseh ${opr.length}`}</button>}
-            {!opr.length && <Prazno ikona="📭">Še ni zaključenih del.</Prazno>}
+            {!opr.length && <Prazno ikona={Inbox}>Še ni zaključenih del.</Prazno>}
           </Kartica>
           <Kartica><Datoteke objektId={id} naslov="Dokumenti objekta" /></Kartica>
         </div>
@@ -486,8 +502,8 @@ function ObjektPodrobno({ id }) {
             {kontakti.map((k) => (
               <div key={k.id} className="kontakt">
                 <b>{k.ime}</b><small>{k.vloga}</small>
-                {k.telefon && <a href={'tel:' + k.telefon.replace(/\s/g, '')}>📞 {k.telefon}</a>}
-                {k.email && <a href={'mailto:' + k.email}>✉ {k.email}</a>}
+                {k.telefon && <a href={'tel:' + k.telefon.replace(/\s/g, '')}><Phone size={13} className="ik" /> {k.telefon}</a>}
+                {k.email && <a href={'mailto:' + k.email}><Mail size={13} className="ik" /> {k.email}</a>}
               </div>
             ))}
             {!kontakti.length && <p className="sivo">Ni kontaktov.</p>}
@@ -525,7 +541,7 @@ export function Naprave() {
     <div className="stran">
       <div className="stran-glava">
         <div><h1>Naprave in redni pregledi</h1><p className="podnaslov">Kurilne naprave, dvigala, klime … s samodejnim izračunom naslednjega pregleda</p></div>
-        {me.vloga !== 'teren' && <button className="gumb primarni" onClick={() => setNov(true)}>+ Nova naprava</button>}
+        {me.vloga !== 'teren' && <button className="gumb primarni" onClick={() => setNov(true)}><Plus size={16} /> Nova naprava</button>}
       </div>
       <div className="kartica brez-roba">
         <table className="tabela">
@@ -541,9 +557,9 @@ export function Naprave() {
                   <td><span className={'dni ' + (d < 0 ? 'rdece' : d <= 30 ? 'oranzno' : 'zeleno')}>{fDatum(x.naslednji_pregled)} · {d < 0 ? `zamuda ${-d} dni` : d === 0 ? 'danes' : `čez ${d} dni`}</span></td>
                   <td className="desno">
                     {nal ? <span className="sivo">Nalog #{nal.id} odprt</span> : (
-                      <button className="gumb mali" onClick={() => novaNaloga({ objekt_id: x.objekt_id, naprava_id: x.id, kategorija: 'pregled', vir: 'redni pregled', naslov: `Redni pregled – ${x.tip}`, rok: x.naslednji_pregled, prioriteta: d < 7 ? 'visoka' : 'normalna', za_racun: true })}>+ Nalog za pregled</button>
+                      <button className="gumb mali" onClick={() => novaNaloga({ objekt_id: x.objekt_id, naprava_id: x.id, kategorija: 'pregled', vir: 'redni pregled', naslov: `Redni pregled – ${x.tip}`, rok: x.naslednji_pregled, prioriteta: d < 7 ? 'visoka' : 'normalna', za_racun: true })}><Plus size={16} /> Nalog za pregled</button>
                     )}
-                    {me.vloga !== 'teren' && <button className="gumb mali" onClick={() => zabelezi(x)} title="Nastavi zadnji pregled na danes">✓ Pregledano danes</button>}
+                    {me.vloga !== 'teren' && <button className="gumb mali" onClick={() => zabelezi(x)} title="Nastavi zadnji pregled na danes"><Check size={14} /> Pregledano danes</button>}
                   </td>
                 </tr>
               );
@@ -625,20 +641,20 @@ export function Dokumenti() {
         <div><h1>Dokumenti</h1><p className="podnaslov">Skupna mapa podjetja – pogodbe, zapisniki, fotografije, ponudbe. Datoteke lahko tudi povlečeš sem.</p></div>
         <div className="glava-desno">
           {!mapa && <select value={ciljnaMapa} onChange={(e) => setCiljnaMapa(e.target.value)} title="V katero mapo naložim">{MAPE.map((m) => <option key={m}>{m}</option>)}</select>}
-          <button className="gumb primarni" onClick={() => vhod.current.click()} disabled={nalagam}>{nalagam ? 'Nalagam …' : '⬆ Naloži datoteke'}</button>
+          <button className="gumb primarni" onClick={() => vhod.current.click()} disabled={nalagam}>{nalagam ? 'Nalagam …' : <><Upload size={16} /> Naloži datoteke</>}</button>
           <input ref={vhod} type="file" multiple hidden onChange={(e) => { upload([...e.target.files]); e.target.value = ''; }} />
         </div>
       </div>
       <div className="mape">
-        <button className={'mapa' + (!mapa ? ' on' : '')} onClick={() => setMapa(null)}><span>🗄️</span>Vse<small>{vsi.length}</small></button>
+        <button className={'mapa' + (!mapa ? ' on' : '')} onClick={() => setMapa(null)}><span><Archive size={22} /></span>Vse<small>{vsi.length}</small></button>
         {MAPE.map((m) => (
           <button key={m} className={'mapa' + (mapa === m ? ' on' : '')} onClick={() => setMapa(m)}>
-            <span>{MAPA_IKONA[m]}</span>{m}<small>{vsi.filter((d) => d.mapa === m).length}</small>
+            <span><MapaIk m={m} s={22} /></span>{m}<small>{vsi.filter((d) => d.mapa === m).length}</small>
           </button>
         ))}
       </div>
       <div className="filtri">
-        <input className="iskanje" placeholder="🔍 Išči datoteko …" value={q} onChange={(e) => setQ(e.target.value)} />
+        <input className="iskanje" placeholder="Išči datoteko …" value={q} onChange={(e) => setQ(e.target.value)} />
         <select value={objekt} onChange={(e) => setObjekt(e.target.value)}><option value="">Vsi objekti</option>{objekti.map((o) => <option key={o.id} value={o.id}>{o.naziv}</option>)}</select>
       </div>
       <div className="kartica brez-roba">
@@ -650,18 +666,18 @@ export function Dokumenti() {
                 const o = objekti.find((x) => x.id === d.objekt_id); const p = profili.find((x) => x.id === d.nalozil_id);
                 return (
                   <tr key={d.id} onClick={() => odpriDatoteko(d)}>
-                    <td><b>{d.mime?.startsWith('image/') ? '🖼️' : d.mime === 'application/pdf' ? '📕' : '📄'} {d.ime}</b>{d.naloga_id && <div className="pod">nalog #{d.naloga_id}</div>}</td>
-                    <td>{MAPA_IKONA[d.mapa]} {d.mapa}</td>
+                    <td><b className="ime-dat">{d.mime?.startsWith('image/') ? <ImageIk size={15} className="ik" /> : <FileText size={15} className="ik" />} {d.ime}</b>{d.naloga_id && <div className="pod">nalog #{d.naloga_id}</div>}</td>
+                    <td><MapaIk m={d.mapa} s={14} /> {d.mapa}</td>
                     <td>{o?.naziv || <span className="sivo">splošno</span>}</td>
                     <td>{p?.ime.split(' ')[0]}<div className="pod">{fRelativno(d.created_at)}</div></td>
                     <td>{fVelikost(d.velikost)}</td>
-                    <td className="desno">{(me.vloga !== 'teren' || d.nalozil_id === me.id) && <button className="ikona-gumb" onClick={(e) => { e.stopPropagation(); izbrisi(d); }} title="Izbriši">🗑</button>}</td>
+                    <td className="desno">{(me.vloga !== 'teren' || d.nalozil_id === me.id) && <button className="ikona-gumb" onClick={(e) => { e.stopPropagation(); izbrisi(d); }} title="Izbriši"><Trash2 size={16} /></button>}</td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
-        ) : <Prazno ikona="📂">{vsi.length ? 'Ni datotek v tej mapi.' : 'Še ni dokumentov. Naloži prvo datoteko ali jo povleci sem.'}</Prazno>}
+        ) : <Prazno ikona={FolderOpen}>{vsi.length ? 'Ni datotek v tej mapi.' : 'Še ni dokumentov. Naloži prvo datoteko ali jo povleci sem.'}</Prazno>}
       </div>
     </div>
   );
@@ -684,7 +700,7 @@ export function Ekipa() {
               <Avatar p={p} size={52} />
               <b>{p.ime}</b><small>{p.delovno_mesto}</small>
               <span className={'vloga v-' + p.vloga}>{p.vloga === 'teren' ? 'Teren' : p.vloga === 'vodja' ? 'Vodja' : 'Pisarna'}</span>
-              {p.telefon && <a href={'tel:' + p.telefon.replace(/\s/g, '')} onClick={(e) => e.stopPropagation()}>📞 {p.telefon}</a>}
+              {p.telefon && <a href={'tel:' + p.telefon.replace(/\s/g, '')} onClick={(e) => e.stopPropagation()}><Phone size={13} className="ik" /> {p.telefon}</a>}
               <div className="oseba-stat"><div><b>{akt}</b><small>odprtih</small></div><div><b>{opr.length}</b><small>opravljenih ta mesec</small></div><div><b>{fMinute(min)}</b><small>evidentiranega dela</small></div></div>
             </div>
           );

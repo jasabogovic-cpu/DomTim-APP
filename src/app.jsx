@@ -2,7 +2,10 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client';
 import { sb, AKTIVNI } from './lib.js';
 import { DataCtx, Avatar } from './ui.jsx';
-import { NalogaObrazec, NalogaPodrobno } from './naloga.jsx';
+import { NalogaObrazec, NalogaPodrobno, HitriVnos } from './naloga.jsx';
+import { LayoutDashboard, ListChecks, ClipboardList, CalendarDays, Building2, Flame, FolderOpen, Users, LogOut, Menu, Plus, X, PhoneCall } from 'lucide-react';
+
+const Logo = ({ visina = 34 }) => <img src="ikone/logo.png" alt="DOMtim" className="logo-slika" style={{ height: visina }} />;
 import { Pregled, Naloge, Moje, Plan, Objekti, Naprave, Dokumenti, Ekipa } from './views.jsx';
 
 // --- Namestitev na telefon (PWA) ---
@@ -38,7 +41,7 @@ function Namesti({ vedno }) {
           : <small>Odpiraj jo z ikono na začetnem zaslonu, brez povezave.</small>}
       </div>
       {!iosNavodila && <button className="gumb primarni mali" onClick={namesti}>Namesti</button>}
-      {!vedno && <button className="ikona-gumb" onClick={skrij} aria-label="Skrij">✕</button>}
+      {!vedno && <button className="ikona-gumb" onClick={skrij} aria-label="Skrij"><X size={18} /></button>}
     </div>
   );
 }
@@ -65,7 +68,7 @@ function Prijava() {
   return (
     <div className="prijava">
       <div className="prijava-okno">
-        <div className="logo velik"><span>DOM</span>tim</div>
+        <Logo visina={72} />
         <p className="podnaslov">Delovni nalogi · objekti · dokumenti</p>
         <form onSubmit={prijava} className="obrazec ena">
           <label className="polje"><span>E-naslov</span><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="username" required /></label>
@@ -104,6 +107,7 @@ function Aplikacija({ session }) {
   const [novaPriv, setNovaPriv] = useState(null);
   const [obvestila, setObvestila] = useState([]);
   const [meni, setMeni] = useState(false);
+  const [hitri, setHitri] = useState(false);
 
   const toast = useCallback((t, napaka) => {
     const id = Math.random();
@@ -153,9 +157,10 @@ function Aplikacija({ session }) {
     odpriNalogo: (id) => setOdprtaNaloga(id),
     odpriObjekt: (id) => pojdi('objekti', null, id),
     novaNaloga: (priv = {}) => setNovaPriv(priv),
+    hitriVnos: () => setHitri(true),
   }), [podatki, me, verzija, toast, osvezi, pojdi]);
 
-  if (!me) return <div className="nalaganje"><div className="logo velik"><span>DOM</span>tim</div><p>Nalagam …</p></div>;
+  if (!me) return <div className="nalaganje"><Logo visina={72} /><p>Nalagam …</p></div>;
 
   const teren = me.vloga === 'teren';
   const stran = pot.stran || (teren ? 'moje' : 'pregled');
@@ -163,14 +168,14 @@ function Aplikacija({ session }) {
   const nujnih = podatki.naloge.filter((n) => n.prioriteta === 'nujno' && AKTIVNI.includes(n.status)).length;
 
   const NAV = [
-    ...(!teren ? [['pregled', '◉', 'Pregled']] : []),
-    ['moje', '✔', 'Moje naloge', mojih],
-    ['naloge', '☰', 'Vsi nalogi', nujnih, true],
-    ['plan', '▦', 'Tedenski plan'],
-    ['objekti', '⌂', 'Objekti'],
-    ['naprave', '🔥', 'Naprave in pregledi'],
-    ['dokumenti', '🗂', 'Dokumenti'],
-    ['ekipa', '👥', 'Ekipa'],
+    ...(!teren ? [['pregled', LayoutDashboard, 'Pregled']] : []),
+    ['moje', ListChecks, 'Moje naloge', mojih],
+    ['naloge', ClipboardList, 'Vsi nalogi', nujnih, true],
+    ['plan', CalendarDays, 'Tedenski plan'],
+    ['objekti', Building2, 'Objekti'],
+    ['naprave', Flame, 'Naprave in pregledi'],
+    ['dokumenti', FolderOpen, 'Dokumenti'],
+    ['ekipa', Users, 'Ekipa'],
   ];
   const MOBILNO = teren ? ['moje', 'naloge', 'objekti', 'dokumenti'] : ['pregled', 'naloge', 'plan', 'objekti'];
 
@@ -183,35 +188,37 @@ function Aplikacija({ session }) {
     <DataCtx.Provider value={ctx}>
       <div className={'lupina' + (meni ? ' meni-odprt' : '')}>
         <aside className="stranska">
-          <div className="logo"><span>DOM</span>tim</div>
+          <div className="stranska-logo"><Logo visina={56} /></div>
+          {!teren && <button className="gumb primarni hitri-gumb" onClick={() => setHitri(true)}><PhoneCall size={16} /> Hiter vnos klica</button>}
           <nav>
             {NAV.map(([k, ik, l, st, rdeca]) => (
               <a key={k} href={'#/' + k} className={stran === k ? 'on' : ''}>
-                <span className="nav-ik">{ik}</span>{l}{st > 0 && <span className={'nav-st' + (rdeca ? ' rdeca' : '')}>{st}</span>}
+                <span className="nav-ik">{React.createElement(ik, { size: 18 })}</span>{l}{st > 0 && <span className={'nav-st' + (rdeca ? ' rdeca' : '')}>{st}</span>}
               </a>
             ))}
           </nav>
           <div className="jaz">
             <Avatar p={me} size={34} />
             <div><b>{me.ime}</b><small>{me.delovno_mesto}</small></div>
-            <button className="ikona-gumb" title="Odjava" onClick={() => sb.auth.signOut()}>⎋</button>
+            <button className="ikona-gumb" title="Odjava" onClick={() => sb.auth.signOut()}><LogOut size={18} /></button>
           </div>
         </aside>
         <div className="mobilna-glava">
-          <button className="ikona-gumb" onClick={() => setMeni(!meni)}>☰</button>
-          <div className="logo"><span>DOM</span>tim</div>
-          <button className="ikona-gumb plus" onClick={() => setNovaPriv(teren ? { dodeljeno_id: me.id, vir: 'osebno' } : {})}>+</button>
+          <button className="ikona-gumb" onClick={() => setMeni(!meni)}><Menu size={22} /></button>
+          <Logo visina={32} />
+          <button className="ikona-gumb plus" onClick={() => teren ? setNovaPriv({ dodeljeno_id: me.id, vir: 'osebno' }) : setHitri(true)}><Plus size={22} /></button>
         </div>
         {meni && <div className="meni-ozadje" onClick={() => setMeni(false)} />}
         <main><div className="namesti-ovoj"><Namesti /></div>{vsebina}</main>
         <nav className="spodnja">
           {MOBILNO.map((k) => { const x = NAV.find((n) => n[0] === k); return (
-            <a key={k} href={'#/' + k} className={stran === k ? 'on' : ''}><span>{x[1]}</span>{x[2].split(' ')[0]}{x[3] > 0 && <i>{x[3]}</i>}</a>
+            <a key={k} href={'#/' + k} className={stran === k ? 'on' : ''}><span>{React.createElement(x[1], { size: 21 })}</span>{x[2].split(' ')[0]}{x[3] > 0 && <i>{x[3]}</i>}</a>
           ); })}
         </nav>
       </div>
       {odprtaNaloga && <NalogaPodrobno id={odprtaNaloga} onClose={() => setOdprtaNaloga(null)} />}
       {novaPriv && <NalogaObrazec privzeto={novaPriv} onClose={() => setNovaPriv(null)} onSaved={(n) => { osvezi(); setOdprtaNaloga(n.id); }} />}
+      {hitri && <HitriVnos onClose={() => setHitri(false)} onVec={(priv) => { setHitri(false); setNovaPriv(Object.fromEntries(Object.entries(priv).filter(([, v]) => v != null))); }} onSaved={(n) => setOdprtaNaloga(n.id)} />}
       <div className="obvestila">{obvestila.map((o) => <div key={o.id} className={'obvestilo' + (o.napaka ? ' napaka' : '')}>{o.t}</div>)}</div>
     </DataCtx.Provider>
   );
