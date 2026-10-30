@@ -1,0 +1,17 @@
+{
+  "name": "DOMtim – delovni nalogi",
+  "short_name": "DOMtim",
+  "description": "Delovni nalogi, objekti in dokumenti podjetja DOMtim",
+  "lang": "sl",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f2f5f9",
+  "theme_color": "#0d2c54",
+  "icons": [
+    { "src": "ikone/ikona-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "ikone/ikona-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "ikone/ikona-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

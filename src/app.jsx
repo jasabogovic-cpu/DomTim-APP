@@ -5,6 +5,44 @@ import { DataCtx, Avatar } from './ui.jsx';
 import { NalogaObrazec, NalogaPodrobno } from './naloga.jsx';
 import { Pregled, Naloge, Moje, Plan, Objekti, Naprave, Dokumenti, Ekipa } from './views.jsx';
 
+// --- Namestitev na telefon (PWA) ---
+let odlozenPoziv = null;
+const posluSalci = new Set();
+window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); odlozenPoziv = e; posluSalci.forEach((f) => f()); });
+window.addEventListener('appinstalled', () => { odlozenPoziv = null; posluSalci.forEach((f) => f()); });
+const jeNamesceno = () => window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+const jeIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+function Namesti({ vedno }) {
+  const [, osvezi] = useState(0);
+  const [skrito, setSkrito] = useState(() => { try { return localStorage.getItem('namesti-skrij') === '1'; } catch { return false; } });
+  const [iosNavodila, setIosNavodila] = useState(false);
+  useEffect(() => { const f = () => osvezi((x) => x + 1); posluSalci.add(f); return () => posluSalci.delete(f); }, []);
+  if (jeNamesceno() || (skrito && !vedno)) return null;
+  const ios = jeIOS();
+  if (!odlozenPoziv && !ios) return null;
+  const namesti = async () => {
+    if (ios) return setIosNavodila(true);
+    odlozenPoziv.prompt();
+    await odlozenPoziv.userChoice;
+    odlozenPoziv = null; osvezi((x) => x + 1);
+  };
+  const skrij = () => { setSkrito(true); try { localStorage.setItem('namesti-skrij', '1'); } catch {} };
+  return (
+    <div className="namesti">
+      <img src="ikone/ikona-192.png" alt="" />
+      <div className="namesti-besedilo">
+        <b>Namesti DOMtim na telefon</b>
+        {iosNavodila
+          ? <small>V Safariju tapni <b>Deli</b> (kvadrat s puščico ⬆) spodaj, nato <b>»Dodaj na začetni zaslon«</b>.</small>
+          : <small>Odpiraj jo z ikono na začetnem zaslonu, brez povezave.</small>}
+      </div>
+      {!iosNavodila && <button className="gumb primarni mali" onClick={namesti}>Namesti</button>}
+      {!vedno && <button className="ikona-gumb" onClick={skrij} aria-label="Skrij">✕</button>}
+    </div>
+  );
+}
+
 const DEMO = [
   ['direktor@domtim.demo', 'Direktor', 'Andrej Z.'],
   ['poslovodja@domtim.demo', 'Poslovodja', 'Petra K.'],
@@ -35,6 +73,7 @@ function Prijava() {
           {napaka && <div className="napaka">{napaka}</div>}
           <button className="gumb primarni polna" disabled={nalagam}>{nalagam ? 'Prijavljam …' : 'Prijava'}</button>
         </form>
+        <Namesti vedno />
         <div className="demo">
           <p>Preizkusni dostop (prototip):</p>
           <div className="demo-gumbi">
@@ -164,7 +203,7 @@ function Aplikacija({ session }) {
           <button className="ikona-gumb plus" onClick={() => setNovaPriv(teren ? { dodeljeno_id: me.id, vir: 'osebno' } : {})}>+</button>
         </div>
         {meni && <div className="meni-ozadje" onClick={() => setMeni(false)} />}
-        <main>{vsebina}</main>
+        <main><div className="namesti-ovoj"><Namesti /></div>{vsebina}</main>
         <nav className="spodnja">
           {MOBILNO.map((k) => { const x = NAV.find((n) => n[0] === k); return (
             <a key={k} href={'#/' + k} className={stran === k ? 'on' : ''}><span>{x[1]}</span>{x[2].split(' ')[0]}{x[3] > 0 && <i>{x[3]}</i>}</a>

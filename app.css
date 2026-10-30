@@ -365,3 +365,14 @@ main { min-width: 0; }
   .obvestila { left: 14px; right: 14px; bottom: 76px; }
   .akcije .gumb { flex: 1; }
 }
+
+/* Namestitev */
+.namesti { display: flex; align-items: center; gap: 12px; background: var(--povrsina); border: 1px solid var(--rob); border-left: 4px solid var(--zelena-znamka); border-radius: var(--r); padding: 10px 12px; box-shadow: var(--senca); text-align: left; }
+.namesti img { width: 40px; height: 40px; border-radius: 9px; flex-shrink: 0; }
+.namesti-besedilo { flex: 1; min-width: 0; }
+.namesti-besedilo b { display: block; }
+.namesti-besedilo small b { display: inline; color: var(--tekst); }
+.prijava-okno .namesti { margin-top: 20px; }
+.namesti-ovoj { padding: 14px 14px 0; max-width: 1400px; }
+.namesti-ovoj:empty { display: none; }
+@media (min-width: 821px) { .namesti-ovoj { padding: 20px 32px 0; } }
