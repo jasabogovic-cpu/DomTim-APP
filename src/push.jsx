@@ -84,14 +84,24 @@ export function ObvestilaPasica({ obv }) {
   );
 }
 
+export async function testnoObvestilo(toast) {
+  const { data, error } = await sb.functions.invoke('poslji-obvestilo', { body: { test: true } });
+  if (error) return toast('Napaka: ' + error.message, true);
+  if (!data.naprav) return toast('Na tem računu ni vklopljenih obvestil. Najprej tapni »Vklopi obvestila«.', true);
+  toast(`Testno obvestilo poslano na ${data.poslano} od ${data.naprav} naprav`);
+}
+
 /** Majhen indikator v meniju. */
-export function ObvestilaStikalo({ obv }) {
+export function ObvestilaStikalo({ obv, toast }) {
   if (obv.stanje === 'ni') return null;
   const vklop = obv.stanje === 'granted';
   return (
-    <button className={'obv-stikalo' + (vklop ? ' on' : '')} onClick={vklop ? undefined : obv.vklopi} title={obv.stanje === 'denied' ? 'Obvestila so blokirana v nastavitvah brskalnika' : ''}>
-      {vklop ? <Bell size={16} /> : <BellOff size={16} />}
-      {vklop ? 'Obvestila vklopljena' : obv.stanje === 'denied' ? 'Obvestila blokirana' : 'Vklopi obvestila'}
-    </button>
+    <div className="obv-vrstica">
+      <button className={'obv-stikalo' + (vklop ? ' on' : '')} onClick={vklop ? undefined : obv.vklopi} title={obv.stanje === 'denied' ? 'Obvestila so blokirana v nastavitvah brskalnika' : ''}>
+        {vklop ? <Bell size={16} /> : <BellOff size={16} />}
+        {vklop ? 'Obvestila vklopljena' : obv.stanje === 'denied' ? 'Obvestila blokirana' : 'Vklopi obvestila'}
+      </button>
+      {vklop && <button className="obv-test" onClick={() => testnoObvestilo(toast)} title="Pošlji testno obvestilo na vse moje naprave">Test</button>}
+    </div>
   );
 }

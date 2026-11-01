@@ -7,7 +7,7 @@ import { LayoutDashboard, ListChecks, ClipboardList, CalendarDays, Building2, Fl
 
 const Logo = ({ visina = 34 }) => <img src="ikone/logo.png" alt="DOMtim" className="logo-slika" style={{ height: visina }} />;
 import { Pregled, Naloge, Moje, Plan, Objekti, Naprave, Dokumenti, Ekipa, Obracun } from './views.jsx';
-import { useObvestila, ObvestilaPasica, ObvestilaStikalo, odjaviNarocnino } from './push.jsx';
+import { useObvestila, ObvestilaPasica, ObvestilaStikalo, odjaviNarocnino, testnoObvestilo } from './push.jsx';
 
 // --- Namestitev na telefon (PWA) ---
 let odlozenPoziv = null;
@@ -211,7 +211,7 @@ function Aplikacija({ session }) {
               </a>
             ))}
           </nav>
-          <ObvestilaStikalo obv={obv} />
+          <ObvestilaStikalo obv={obv} toast={toast} />
           <div className="jaz">
             <Avatar p={me} size={34} />
             <div><b>{me.ime}</b><small>{me.delovno_mesto}</small></div>

@@ -1,6 +1,6 @@
 // Preprost service worker: omogoča namestitev na telefon in hitrejše odpiranje.
 // Podatki (Supabase) gredo vedno v živo, shranjujejo se samo datoteke aplikacije.
-const CACHE = 'domtim-1793536070';
+const CACHE = 'domtim-1793536979';
 const LUPINA = ['./', 'index.html', 'app.js', 'app.css', 'manifest.webmanifest', 'ikone/ikona-192.png'];
 
 self.addEventListener('install', (e) => {
