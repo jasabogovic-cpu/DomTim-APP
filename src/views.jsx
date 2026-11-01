@@ -709,3 +709,74 @@ export function Ekipa() {
     </div>
   );
 }
+
+/* ---------- OBRAČUN (za računovodstvo) ---------- */
+export function Obracun() {
+  const { naloge, profili, objekti, me, odpriNalogo, toast } = useData();
+  const [zavihek, setZavihek] = useState('odprto');
+  const [izbrani, setIzbrani] = useState([]);
+  const zaRacun = naloge.filter((n) => n.status === 'opravljena' && n.za_racun);
+  const odprto = zaRacun.filter((n) => !n.obracunano_at).sort((a, b) => (a.opravljeno_at || '').localeCompare(b.opravljeno_at || ''));
+  const obracunano = zaRacun.filter((n) => n.obracunano_at).sort((a, b) => b.obracunano_at.localeCompare(a.obracunano_at)).slice(0, 100);
+  const seznam = zavihek === 'odprto' ? odprto : obracunano;
+  const skupajMin = odprto.reduce((s, n) => s + (n.porabljen_cas_min || 0), 0);
+
+  const oznaci = async (ids, vrednost) => {
+    const { error } = await sb.from('naloge').update(vrednost ? { obracunano_at: new Date().toISOString(), obracunal_id: me.id } : { obracunano_at: null, obracunal_id: null }).in('id', ids);
+    if (error) return toast('Napaka: ' + error.message, true);
+    toast(vrednost ? `Obračunano: ${ids.length}` : 'Vrnjeno med neobračunane');
+    setIzbrani([]);
+  };
+  const preklopi = (id) => setIzbrani((x) => x.includes(id) ? x.filter((y) => y !== id) : [...x, id]);
+
+  return (
+    <div className="stran">
+      <div className="stran-glava">
+        <div><h1>Obračun</h1><p className="podnaslov">Opravljeni delovni nalogi, ki se zaračunajo</p></div>
+        {zavihek === 'odprto' && izbrani.length > 0 && (
+          <button className="gumb uspeh" onClick={() => oznaci(izbrani, true)}><Check size={16} /> Označi kot obračunano ({izbrani.length})</button>
+        )}
+      </div>
+      <div className="kpi-vrsta kpi-3">
+        <div className="kpi kpi-oranzen"><b>{odprto.length}</b><span>Čaka na obračun</span></div>
+        <div className="kpi"><b>{fMinute(skupajMin)}</b><span>Evidentiranega dela</span></div>
+        <div className="kpi kpi-zelen"><b>{zaRacun.filter((n) => n.obracunano_at && new Date(n.obracunano_at) >= new Date(new Date().getFullYear(), new Date().getMonth(), 1)).length}</b><span>Obračunanih ta mesec</span></div>
+      </div>
+      <div className="zavihki">
+        <button className={zavihek === 'odprto' ? 'on' : ''} onClick={() => setZavihek('odprto')}>Za obračun<span>{odprto.length}</span></button>
+        <button className={zavihek === 'obracunano' ? 'on' : ''} onClick={() => { setZavihek('obracunano'); setIzbrani([]); }}>Obračunano</button>
+      </div>
+      <div className="kartica brez-roba">
+        {seznam.length ? (
+          <table className="tabela obracun">
+            <thead><tr>
+              {zavihek === 'odprto' && <th className="izbira"><input type="checkbox" checked={izbrani.length === odprto.length && odprto.length > 0} onChange={(e) => setIzbrani(e.target.checked ? odprto.map((n) => n.id) : [])} /></th>}
+              <th>Nalog</th><th>Objekt</th><th>Izvajalec</th><th>Opravljeno</th><th>Čas</th><th>Material</th><th />
+            </tr></thead>
+            <tbody>
+              {seznam.map((n) => {
+                const o = objekti.find((x) => x.id === n.objekt_id); const p = profili.find((x) => x.id === n.dodeljeno_id); const ob = profili.find((x) => x.id === n.obracunal_id);
+                return (
+                  <tr key={n.id} onClick={() => odpriNalogo(n.id)}>
+                    {zavihek === 'odprto' && <td className="izbira" onClick={(e) => e.stopPropagation()}><input type="checkbox" checked={izbrani.includes(n.id)} onChange={() => preklopi(n.id)} /></td>}
+                    <td><span className="st-naloga">#{n.id}</span> <b>{n.naslov}</b><div className="pod porocilo-kratko">{n.porocilo || <em>brez poročila</em>}</div></td>
+                    <td>{o?.naziv || <span className="sivo">–</span>}</td>
+                    <td>{p ? <span className="oseba"><Avatar p={p} size={22} /> {p.ime.split(' ')[0]}</span> : '–'}</td>
+                    <td>{fDatum(n.opravljeno_at)}{zavihek === 'obracunano' && <div className="pod">obračunano {fDatum(n.obracunano_at)}{ob ? ` · ${ob.ime.split(' ')[0]}` : ''}</div>}</td>
+                    <td>{fMinute(n.porabljen_cas_min)}</td>
+                    <td className="material">{n.material || <span className="sivo">–</span>}</td>
+                    <td className="desno" onClick={(e) => e.stopPropagation()}>
+                      {zavihek === 'odprto'
+                        ? <button className="gumb mali" onClick={() => oznaci([n.id], true)}><Check size={14} /> Obračunano</button>
+                        : <button className="gumb mali" onClick={() => oznaci([n.id], false)}>Vrni</button>}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        ) : <Prazno ikona={zavihek === 'odprto' ? Check : Inbox}>{zavihek === 'odprto' ? 'Vse je obračunano.' : 'Še ni obračunanih nalogov.'}</Prazno>}
+      </div>
+    </div>
+  );
+}

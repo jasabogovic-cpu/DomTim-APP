@@ -21,3 +21,28 @@ self.addEventListener('fetch', (e) => {
       .catch(() => caches.match(e.request, { ignoreSearch: true }).then((r) => r || caches.match('index.html')))
   );
 });
+
+// --- Obvestila (push) ---
+self.addEventListener('push', (e) => {
+  let d = {};
+  try { d = e.data ? e.data.json() : {}; } catch { d = { title: 'DOMtim', body: e.data && e.data.text() }; }
+  e.waitUntil(self.registration.showNotification(d.title || 'DOMtim', {
+    body: d.body || '',
+    icon: 'ikone/ikona-192.png',
+    badge: 'ikone/ikona-192.png',
+    tag: d.tag,
+    renotify: true,
+    data: { url: d.url || './' },
+  }));
+});
+
+self.addEventListener('notificationclick', (e) => {
+  e.notification.close();
+  const cilj = new URL(e.notification.data?.url || './', self.registration.scope).href;
+  e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((okna) => {
+    for (const o of okna) {
+      if (o.url.startsWith(self.registration.scope)) { o.focus(); return o.navigate(cilj); }
+    }
+    return self.clients.openWindow(cilj);
+  }));
+});

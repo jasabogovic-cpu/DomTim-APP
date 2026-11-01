@@ -3,10 +3,11 @@ import { createRoot } from 'react-dom/client';
 import { sb, AKTIVNI } from './lib.js';
 import { DataCtx, Avatar } from './ui.jsx';
 import { NalogaObrazec, NalogaPodrobno, HitriVnos } from './naloga.jsx';
-import { LayoutDashboard, ListChecks, ClipboardList, CalendarDays, Building2, Flame, FolderOpen, Users, LogOut, Menu, Plus, X, PhoneCall } from 'lucide-react';
+import { LayoutDashboard, ListChecks, ClipboardList, CalendarDays, Building2, Flame, FolderOpen, Users, LogOut, Menu, Plus, X, PhoneCall, Receipt } from 'lucide-react';
 
 const Logo = ({ visina = 34 }) => <img src="ikone/logo.png" alt="DOMtim" className="logo-slika" style={{ height: visina }} />;
-import { Pregled, Naloge, Moje, Plan, Objekti, Naprave, Dokumenti, Ekipa } from './views.jsx';
+import { Pregled, Naloge, Moje, Plan, Objekti, Naprave, Dokumenti, Ekipa, Obracun } from './views.jsx';
+import { useObvestila, ObvestilaPasica, ObvestilaStikalo, odjaviNarocnino } from './push.jsx';
 
 // --- Namestitev na telefon (PWA) ---
 let odlozenPoziv = null;
@@ -114,6 +115,17 @@ function Aplikacija({ session }) {
     setObvestila((o) => [...o, { id, t, napaka }]);
     setTimeout(() => setObvestila((o) => o.filter((x) => x.id !== id)), 3500);
   }, []);
+  const obv = useObvestila(session.user.id, toast);
+
+  // odpri nalog iz povezave (npr. s klikom na obvestilo): #/moje?naloga=1001
+  useEffect(() => {
+    if (pot.filter.naloga) {
+      setOdprtaNaloga(+pot.filter.naloga);
+      const { naloga, ...ostalo } = pot.filter;
+      const q = new URLSearchParams(ostalo).toString();
+      history.replaceState(null, '', `#/${pot.stran || ''}${pot.id ? '/' + pot.id : ''}${q ? '?' + q : ''}`);
+    }
+  }, [pot]);
 
   const osvezi = useCallback(async () => {
     const [p, o, n, l] = await Promise.all([
@@ -166,6 +178,7 @@ function Aplikacija({ session }) {
   const stran = pot.stran || (teren ? 'moje' : 'pregled');
   const mojih = podatki.naloge.filter((n) => n.dodeljeno_id === me.id && AKTIVNI.includes(n.status)).length;
   const nujnih = podatki.naloge.filter((n) => n.prioriteta === 'nujno' && AKTIVNI.includes(n.status)).length;
+  const zaObracun = podatki.naloge.filter((n) => n.status === 'opravljena' && n.za_racun && !n.obracunano_at).length;
 
   const NAV = [
     ...(!teren ? [['pregled', LayoutDashboard, 'Pregled']] : []),
@@ -174,14 +187,15 @@ function Aplikacija({ session }) {
     ['plan', CalendarDays, 'Tedenski plan'],
     ['objekti', Building2, 'Objekti'],
     ['naprave', Flame, 'Naprave in pregledi'],
+    ...(!teren ? [['obracun', Receipt, 'Obračun', zaObracun, me.prejema_obracun]] : []),
     ['dokumenti', FolderOpen, 'Dokumenti'],
     ['ekipa', Users, 'Ekipa'],
   ];
-  const MOBILNO = teren ? ['moje', 'naloge', 'objekti', 'dokumenti'] : ['pregled', 'naloge', 'plan', 'objekti'];
+  const MOBILNO = teren ? ['moje', 'naloge', 'objekti', 'dokumenti'] : me.prejema_obracun ? ['pregled', 'naloge', 'obracun', 'objekti'] : ['pregled', 'naloge', 'plan', 'objekti'];
 
   const vsebina = {
     pregled: <Pregled />, naloge: <Naloge filterZacetni={pot.filter} />, moje: <Moje />, plan: <Plan />,
-    objekti: <Objekti izbran={pot.id} />, naprave: <Naprave />, dokumenti: <Dokumenti />, ekipa: <Ekipa />,
+    objekti: <Objekti izbran={pot.id} />, naprave: <Naprave />, dokumenti: <Dokumenti />, ekipa: <Ekipa />, obracun: <Obracun />,
   }[stran] || <Pregled />;
 
   return (
@@ -197,10 +211,11 @@ function Aplikacija({ session }) {
               </a>
             ))}
           </nav>
+          <ObvestilaStikalo obv={obv} />
           <div className="jaz">
             <Avatar p={me} size={34} />
             <div><b>{me.ime}</b><small>{me.delovno_mesto}</small></div>
-            <button className="ikona-gumb" title="Odjava" onClick={() => sb.auth.signOut()}><LogOut size={18} /></button>
+            <button className="ikona-gumb" title="Odjava" onClick={async () => { await odjaviNarocnino(); sb.auth.signOut(); }}><LogOut size={18} /></button>
           </div>
         </aside>
         <div className="mobilna-glava">
@@ -209,7 +224,7 @@ function Aplikacija({ session }) {
           <button className="ikona-gumb plus" onClick={() => teren ? setNovaPriv({ dodeljeno_id: me.id, vir: 'osebno' }) : setHitri(true)}><Plus size={22} /></button>
         </div>
         {meni && <div className="meni-ozadje" onClick={() => setMeni(false)} />}
-        <main><div className="namesti-ovoj"><Namesti /></div>{vsebina}</main>
+        <main><div className="namesti-ovoj"><Namesti /><ObvestilaPasica obv={obv} /></div>{vsebina}</main>
         <nav className="spodnja">
           {MOBILNO.map((k) => { const x = NAV.find((n) => n[0] === k); return (
             <a key={k} href={'#/' + k} className={stran === k ? 'on' : ''}><span>{React.createElement(x[1], { size: 21 })}</span>{x[2].split(' ')[0]}{x[3] > 0 && <i>{x[3]}</i>}</a>

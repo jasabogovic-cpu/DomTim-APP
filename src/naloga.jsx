@@ -4,7 +4,7 @@ import {
   isoDan, zamuja, varnoIme, mapsUrl,
 } from './lib.js';
 import { useData, Status, Prio, Kat, Avatar, Modal, Polje, MapaIk } from './ui.jsx';
-import { Euro, Hand, Play, Pause, Check, RotateCcw, MapPin, Phone, Mail, Pencil, Paperclip, Trash2, ChevronLeft, ChevronRight, X, AlertTriangle } from 'lucide-react';
+import { Euro, Hand, Play, Pause, Check, RotateCcw, MapPin, Phone, Mail, Pencil, Paperclip, Trash2, ChevronLeft, ChevronRight, X, AlertTriangle, Printer } from 'lucide-react';
 
 /* ---------- Obrazec za nov / urejanje naloga ---------- */
 export function NalogaObrazec({ naloga, privzeto = {}, onClose, onSaved }) {
@@ -144,6 +144,10 @@ export function NalogaPodrobno({ id, onClose }) {
     const { error } = await sb.from('naloge').update({ dodeljeno_id: me.id }).eq('id', n.id);
     if (error) toast('Napaka: ' + error.message, true); else toast('Nalog je zdaj tvoj');
   };
+  const obracun = async (da) => {
+    const { error } = await sb.from('naloge').update(da ? { obracunano_at: new Date().toISOString(), obracunal_id: me.id } : { obracunano_at: null, obracunal_id: null }).eq('id', n.id);
+    if (error) toast('Napaka: ' + error.message, true); else toast(da ? 'Označeno kot obračunano' : 'Vrnjeno med neobračunane');
+  };
   const izbrisi = async () => {
     if (!confirm(`Izbrišem nalog #${n.id}? Tega ni mogoče razveljaviti.`)) return;
     const { error } = await sb.from('naloge').delete().eq('id', n.id);
@@ -185,6 +189,17 @@ export function NalogaPodrobno({ id, onClose }) {
               </dl>
             </div>
           )}
+          {n.status === 'opravljena' && n.za_racun && (
+            <div className={'obracun-okvir' + (n.obracunano_at ? ' koncano' : '')}>
+              <Euro size={18} />
+              <div>{n.obracunano_at
+                ? <><b>Obračunano</b> {fCas(n.obracunano_at)}{profili.find((p) => p.id === n.obracunal_id) ? ` · ${profili.find((p) => p.id === n.obracunal_id).ime}` : ''}</>
+                : <><b>Čaka na obračun</b><small> – računovodstvo je obveščeno</small></>}</div>
+              {pisarna && (n.obracunano_at
+                ? <button className="gumb mali" onClick={() => obracun(false)}>Vrni</button>
+                : <button className="gumb mali uspeh" onClick={() => obracun(true)}><Check size={14} /> Obračunano</button>)}
+            </div>
+          )}
           {n.status !== 'opravljena' && n.porocilo && (
             <div className="porocilo opomba"><h4>Opomba s terena</h4><p>{n.porocilo}</p></div>
           )}
@@ -208,6 +223,7 @@ export function NalogaPodrobno({ id, onClose }) {
             <dt>Ustvaril</dt><dd>{ust?.ime || '–'}<br /><small>{fCas(n.created_at)}</small></dd>
           </dl>
           {lahkoUreja && <button className="gumb polna" onClick={() => setUredi(true)}><Pencil size={15} /> Uredi nalog</button>}
+          <button className="gumb polna" onClick={() => natisniNalog(n, { obj, nap, dod, ust })}><Printer size={15} /> Natisni / PDF</button>
           {pisarna && <button className="gumb polna nevarno" onClick={izbrisi}>Izbriši</button>}
         </aside>
       </div>
@@ -445,4 +461,39 @@ export async function odpriDatoteko(d) {
   const { data, error } = await sb.storage.from('dokumenti').createSignedUrl(d.pot, 600);
   if (error) return alert('Datoteke ni mogoče odpreti: ' + error.message);
   window.open(data.signedUrl, '_blank');
+}
+
+/* ---------- Tiskanje delovnega naloga (začasna oblika, prilagodi se obrazcu podjetja) ---------- */
+const esc = (x) => String(x ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+export function natisniNalog(n, { obj, nap, dod, ust }) {
+  const vrstica = (l, v) => `<tr><th>${l}</th><td>${esc(v) || '&nbsp;'}</td></tr>`;
+  const html = `<!DOCTYPE html><html lang="sl"><head><meta charset="utf-8"><title>Delovni nalog ${n.id}</title>
+<style>
+  @page { size: A4; margin: 16mm; }
+  body { font: 11pt/1.45 Arial, sans-serif; color: #111; margin: 0; }
+  .glava { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2px solid #0067b1; padding-bottom: 10px; margin-bottom: 16px; }
+  .glava img { height: 54px; }
+  h1 { font-size: 18pt; margin: 0; color: #0067b1; } h1 small { color: #555; font-size: 11pt; font-weight: normal; display: block; text-align: right; }
+  h2 { font-size: 11pt; text-transform: uppercase; letter-spacing: .04em; color: #009444; border-bottom: 1px solid #ccc; padding-bottom: 3px; margin: 18px 0 6px; }
+  table { width: 100%; border-collapse: collapse; } th { text-align: left; width: 32%; color: #444; font-weight: 600; vertical-align: top; padding: 4px 8px 4px 0; } td { padding: 4px 0; border-bottom: 1px dotted #bbb; }
+  .okvir { border: 1px solid #bbb; min-height: 70px; padding: 8px; white-space: pre-wrap; }
+  .podpisi { display: flex; gap: 40px; margin-top: 40px; } .podpisi div { flex: 1; border-top: 1px solid #333; padding-top: 4px; font-size: 9.5pt; color: #444; }
+  .noga { margin-top: 24px; font-size: 8.5pt; color: #777; }
+</style></head><body>
+<div class="glava"><img src="${new URL('ikone/logo.png', location.href)}" alt="DOMtim"><h1>DELOVNI NALOG<small>št. ${n.id}</small></h1></div>
+<h2>Podatki o nalogu</h2><table>
+${vrstica('Naziv', n.naslov)}${vrstica('Objekt', obj ? obj.naziv + ', ' + obj.naslov + ', ' + obj.kraj : '')}
+${vrstica('Naprava', nap ? nap.tip + ' – ' + (nap.proizvajalec || '') + ' ' + (nap.model || '') : '')}${vrstica('Kategorija', n.kategorija)}
+${vrstica('Prijavitelj', [n.prijavitelj, n.prijavitelj_kontakt].filter(Boolean).join(', '))}${vrstica('Datum prijave', fCas(n.created_at))}
+${vrstica('Nalog izdal', ust?.ime)}${vrstica('Izvajalec', dod?.ime)}</table>
+${n.opis ? `<h2>Opis</h2><div class="okvir">${esc(n.opis)}</div>` : ''}
+<h2>Opravljeno delo</h2><div class="okvir">${esc(n.porocilo)}</div>
+<table style="margin-top:8px">${vrstica('Porabljen čas', fMinute(n.porabljen_cas_min))}${vrstica('Porabljen material', n.material)}${vrstica('Datum izvedbe', n.opravljeno_at ? fCas(n.opravljeno_at) : '')}${vrstica('Zaračuna se', n.za_racun ? 'DA' : 'NE')}</table>
+<div class="podpisi"><div>Izvajalec</div><div>Stranka / naročnik</div></div>
+<div class="noga">Izpisano iz aplikacije DOMtim, ${new Date().toLocaleString('sl-SI')}</div>
+<script>window.onload = () => setTimeout(() => window.print(), 300);<\/script>
+</body></html>`;
+  const w = window.open('', '_blank');
+  if (!w) return alert('Brskalnik je blokiral novo okno. Dovoli pojavna okna za to stran.');
+  w.document.write(html); w.document.close();
 }
