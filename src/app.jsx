@@ -219,6 +219,7 @@ function Aplikacija({ session }) {
             <div><b>{me.ime}</b><small>{me.delovno_mesto}</small></div>
             <button className="ikona-gumb" title="Odjava" onClick={async () => { await odjaviNarocnino(); sb.auth.signOut(); }}><LogOut size={18} /></button>
           </div>
+          <button className="odjava-mobilno" onClick={async () => { await odjaviNarocnino(); sb.auth.signOut(); }}><LogOut size={17} /> Odjava</button>
         </aside>
         <div className="mobilna-glava">
           <button className="ikona-gumb" onClick={() => setMeni(!meni)}><Menu size={22} /></button>
