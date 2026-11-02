@@ -147,6 +147,8 @@ function Aplikacija({ session }) {
     const ch = sb.channel('spremembe')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'naloge' }, () => { clearTimeout(casovnik.current); casovnik.current = setTimeout(osvezi, 300); })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'komentarji' }, () => setVerzija((v) => v + 1))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'naloga_delo' }, () => setVerzija((v) => v + 1))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'naloga_material' }, () => setVerzija((v) => v + 1))
       .subscribe();
     const vidno = () => document.visibilityState === 'visible' && osvezi();
     document.addEventListener('visibilitychange', vidno);
@@ -178,7 +180,7 @@ function Aplikacija({ session }) {
   const stran = pot.stran || (teren ? 'moje' : 'pregled');
   const mojih = podatki.naloge.filter((n) => n.dodeljeno_id === me.id && AKTIVNI.includes(n.status)).length;
   const nujnih = podatki.naloge.filter((n) => n.prioriteta === 'nujno' && AKTIVNI.includes(n.status)).length;
-  const zaObracun = podatki.naloge.filter((n) => n.status === 'opravljena' && n.za_racun && !n.obracunano_at).length;
+  const zaObracun = podatki.naloge.filter((n) => n.status === 'opravljena' && n.za_racun && !n.pregledano_at && !n.obracunano_at).length;
 
   const NAV = [
     ...(!teren ? [['pregled', LayoutDashboard, 'Pregled']] : []),

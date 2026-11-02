@@ -4,6 +4,7 @@ import {
   isoDan, zamuja, varnoIme, mapsUrl,
 } from './lib.js';
 import { useData, Status, Prio, Kat, Avatar, Modal, Polje, MapaIk } from './ui.jsx';
+import { ZakljuciObrazec, DelovniNalog, izracun, fEur } from './delovni.jsx';
 import { Euro, Hand, Play, Pause, Check, RotateCcw, MapPin, Phone, Mail, Pencil, Paperclip, Trash2, ChevronLeft, ChevronRight, X, AlertTriangle, Printer } from 'lucide-react';
 
 /* ---------- Obrazec za nov / urejanje naloga ---------- */
@@ -180,26 +181,13 @@ export function NalogaPodrobno({ id, onClose }) {
 
           {n.status === 'opravljena' && (
             <div className="porocilo">
-              <h4>Poročilo o opravljenem delu</h4>
-              <p>{n.porocilo || <em>Brez poročila.</em>}</p>
-              <dl className="mini-dl">
-                <dt>Porabljen čas</dt><dd>{fMinute(n.porabljen_cas_min)}</dd>
-                <dt>Material</dt><dd>{n.material || '–'}</dd>
-                <dt>Zaključeno</dt><dd>{fCas(n.opravljeno_at)}</dd>
-              </dl>
+              <h4>Opis izvedbe del</h4>
+              <p>{n.porocilo || <em>Brez opisa.</em>}</p>
+              <small>Zaključeno {fCas(n.opravljeno_at)}</small>
             </div>
           )}
-          {n.status === 'opravljena' && n.za_racun && (
-            <div className={'obracun-okvir' + (n.obracunano_at ? ' koncano' : '')}>
-              <Euro size={18} />
-              <div>{n.obracunano_at
-                ? <><b>Obračunano</b> {fCas(n.obracunano_at)}{profili.find((p) => p.id === n.obracunal_id) ? ` · ${profili.find((p) => p.id === n.obracunal_id).ime}` : ''}</>
-                : <><b>Čaka na obračun</b><small> – računovodstvo je obveščeno</small></>}</div>
-              {pisarna && (n.obracunano_at
-                ? <button className="gumb mali" onClick={() => obracun(false)}>Vrni</button>
-                : <button className="gumb mali uspeh" onClick={() => obracun(true)}><Check size={14} /> Obračunano</button>)}
-            </div>
-          )}
+          {n.status === 'opravljena' && n.za_racun && <ObracunFaze n={n} />}
+          <DelovniNalog n={n} />
           {n.status !== 'opravljena' && n.porocilo && (
             <div className="porocilo opomba"><h4>Opomba s terena</h4><p>{n.porocilo}</p></div>
           )}
@@ -223,48 +211,12 @@ export function NalogaPodrobno({ id, onClose }) {
             <dt>Ustvaril</dt><dd>{ust?.ime || '–'}<br /><small>{fCas(n.created_at)}</small></dd>
           </dl>
           {lahkoUreja && <button className="gumb polna" onClick={() => setUredi(true)}><Pencil size={15} /> Uredi nalog</button>}
-          <button className="gumb polna" onClick={() => natisniNalog(n, { obj, nap, dod, ust })}><Printer size={15} /> Natisni / PDF</button>
+          <button className="gumb polna" onClick={() => natisniNalog(n, { obj, nap, dod, ust, profili })}><Printer size={15} /> Natisni / PDF</button>
           {pisarna && <button className="gumb polna nevarno" onClick={izbrisi}>Izbriši</button>}
         </aside>
       </div>
       {uredi && <NalogaObrazec naloga={n} onClose={() => setUredi(false)} />}
       {zakljuci && <ZakljuciObrazec n={n} onClose={() => setZakljuci(false)} />}
-    </Modal>
-  );
-}
-
-function ZakljuciObrazec({ n, onClose }) {
-  const { toast } = useData();
-  const [f, setF] = useState({ porocilo: n.porocilo || '', porabljen_cas_min: n.porabljen_cas_min || '', material: n.material || '', za_racun: n.za_racun });
-  const shrani = async (e) => {
-    e.preventDefault();
-    const { error } = await sb.from('naloge').update({
-      status: 'opravljena', porocilo: f.porocilo, material: f.material || null,
-      porabljen_cas_min: f.porabljen_cas_min ? parseInt(f.porabljen_cas_min) : null, za_racun: f.za_racun,
-    }).eq('id', n.id);
-    if (error) return toast('Napaka: ' + error.message, true);
-    toast(`Nalog #${n.id} zaključen`);
-    onClose();
-  };
-  return (
-    <Modal naslov={`Zaključi nalog #${n.id}`} onClose={onClose}>
-      <form onSubmit={shrani} className="obrazec ena">
-        <Polje label="Kaj je bilo narejeno? *">
-          <textarea rows={4} required value={f.porocilo} onChange={(e) => setF({ ...f, porocilo: e.target.value })} placeholder="Kratek opis opravljenega dela, ugotovitve, priporočila …" />
-        </Polje>
-        <Polje label="Porabljen čas (minute)">
-          <div className="hitri-cas">
-            <input type="number" min="0" step="5" value={f.porabljen_cas_min} onChange={(e) => setF({ ...f, porabljen_cas_min: e.target.value })} />
-            {[15, 30, 60, 120].map((m) => <button type="button" key={m} className="gumb mali" onClick={() => setF({ ...f, porabljen_cas_min: m })}>{fMinute(m)}</button>)}
-          </div>
-        </Polje>
-        <Polje label="Porabljen material">
-          <input value={f.material} onChange={(e) => setF({ ...f, material: e.target.value })} placeholder="npr. tesnilo 1/2&quot;, 2x LED žarnica" />
-        </Polje>
-        <label className="potrditev"><input type="checkbox" checked={f.za_racun} onChange={(e) => setF({ ...f, za_racun: e.target.checked })} /> Zaračunaj stranki</label>
-        <p className="namig">Fotografije in zapisnik lahko dodaš v razdelku »Datoteke« na nalogu.</p>
-        <div className="gumbi"><button type="button" className="gumb" onClick={onClose}>Prekliči</button><button className="gumb uspeh"><Check size={16} /> Zaključi nalog</button></div>
-      </form>
     </Modal>
   );
 }
@@ -463,37 +415,125 @@ export async function odpriDatoteko(d) {
   window.open(data.signedUrl, '_blank');
 }
 
-/* ---------- Tiskanje delovnega naloga (začasna oblika, prilagodi se obrazcu podjetja) ---------- */
+/* ---------- Faze obračuna ---------- */
+export function ObracunFaze({ n }) {
+  const { me, profili, toast } = useData();
+  const pisarna = me.vloga !== 'teren';
+  const [racun, setRacun] = useState(n.stevilka_racuna || '');
+  const ime = (id) => profili.find((p) => p.id === id)?.ime || '';
+  const faza = n.obracunano_at ? 3 : n.pregledano_at ? 2 : 1;
+  const posodobi = async (z, sporocilo) => {
+    const { error } = await sb.from('naloge').update(z).eq('id', n.id);
+    if (error) toast('Napaka: ' + error.message, true); else toast(sporocilo);
+  };
+  return (
+    <div className="obracun-faze">
+      <ol className="faze">
+        <li className={faza >= 1 ? 'on' : ''}><span>1</span>Zaključen<small>{fDatum(n.opravljeno_at)}</small></li>
+        <li className={faza >= 2 ? 'on' : ''}><span>2</span>Pregledan<small>{n.pregledano_at ? `${fDatum(n.pregledano_at)} · ${ime(n.pregledal_id).split(' ')[0]}` : 'čaka računovodstvo'}</small></li>
+        <li className={faza >= 3 ? 'on' : ''}><span>3</span>Zaračunan<small>{n.obracunano_at ? `${n.stevilka_racuna ? 'račun ' + n.stevilka_racuna : fDatum(n.obracunano_at)}` : '–'}</small></li>
+      </ol>
+      {pisarna && (
+        <div className="faze-akcije">
+          {faza === 1 && <button className="gumb uspeh mali" onClick={() => posodobi({ pregledano_at: new Date().toISOString(), pregledal_id: me.id }, 'Označeno kot pregledano')}><Check size={14} /> Pregledano – cene in postavke so pravilne</button>}
+          {faza === 2 && <>
+            <input value={racun} onChange={(e) => setRacun(e.target.value)} placeholder="Številka računa" className="racun-vnos" />
+            <button className="gumb uspeh mali" onClick={() => posodobi({ obracunano_at: new Date().toISOString(), obracunal_id: me.id, stevilka_racuna: racun || null }, 'Označeno kot zaračunano')}><Check size={14} /> Zaračunano</button>
+            <button className="gumb mali" onClick={() => posodobi({ pregledano_at: null, pregledal_id: null }, 'Vrnjeno v pregled')}>Vrni v pregled</button>
+          </>}
+          {faza === 3 && <button className="gumb mali" onClick={() => posodobi({ obracunano_at: null, obracunal_id: null }, 'Vrnjeno med nezaračunane')}>Razveljavi »zaračunano«</button>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ---------- Tiskanje delovnega naloga po vzoru papirnatega obrazca ---------- */
 const esc = (x) => String(x ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-export function natisniNalog(n, { obj, nap, dod, ust }) {
-  const vrstica = (l, v) => `<tr><th>${l}</th><td>${esc(v) || '&nbsp;'}</td></tr>`;
-  const html = `<!DOCTYPE html><html lang="sl"><head><meta charset="utf-8"><title>Delovni nalog ${n.id}</title>
-<style>
-  @page { size: A4; margin: 16mm; }
-  body { font: 11pt/1.45 Arial, sans-serif; color: #111; margin: 0; }
-  .glava { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2px solid #0067b1; padding-bottom: 10px; margin-bottom: 16px; }
-  .glava img { height: 54px; }
-  h1 { font-size: 18pt; margin: 0; color: #0067b1; } h1 small { color: #555; font-size: 11pt; font-weight: normal; display: block; text-align: right; }
-  h2 { font-size: 11pt; text-transform: uppercase; letter-spacing: .04em; color: #009444; border-bottom: 1px solid #ccc; padding-bottom: 3px; margin: 18px 0 6px; }
-  table { width: 100%; border-collapse: collapse; } th { text-align: left; width: 32%; color: #444; font-weight: 600; vertical-align: top; padding: 4px 8px 4px 0; } td { padding: 4px 0; border-bottom: 1px dotted #bbb; }
-  .okvir { border: 1px solid #bbb; min-height: 70px; padding: 8px; white-space: pre-wrap; }
-  .podpisi { display: flex; gap: 40px; margin-top: 40px; } .podpisi div { flex: 1; border-top: 1px solid #333; padding-top: 4px; font-size: 9.5pt; color: #444; }
-  .noga { margin-top: 24px; font-size: 8.5pt; color: #777; }
-</style></head><body>
-<div class="glava"><img src="${new URL('ikone/logo.png', location.href)}" alt="DOMtim"><h1>DELOVNI NALOG<small>št. ${n.id}</small></h1></div>
-<h2>Podatki o nalogu</h2><table>
-${vrstica('Naziv', n.naslov)}${vrstica('Objekt', obj ? obj.naziv + ', ' + obj.naslov + ', ' + obj.kraj : '')}
-${vrstica('Naprava', nap ? nap.tip + ' – ' + (nap.proizvajalec || '') + ' ' + (nap.model || '') : '')}${vrstica('Kategorija', n.kategorija)}
-${vrstica('Prijavitelj', [n.prijavitelj, n.prijavitelj_kontakt].filter(Boolean).join(', '))}${vrstica('Datum prijave', fCas(n.created_at))}
-${vrstica('Nalog izdal', ust?.ime)}${vrstica('Izvajalec', dod?.ime)}</table>
-${n.opis ? `<h2>Opis</h2><div class="okvir">${esc(n.opis)}</div>` : ''}
-<h2>Opravljeno delo</h2><div class="okvir">${esc(n.porocilo)}</div>
-<table style="margin-top:8px">${vrstica('Porabljen čas', fMinute(n.porabljen_cas_min))}${vrstica('Porabljen material', n.material)}${vrstica('Datum izvedbe', n.opravljeno_at ? fCas(n.opravljeno_at) : '')}${vrstica('Zaračuna se', n.za_racun ? 'DA' : 'NE')}</table>
-<div class="podpisi"><div>Izvajalec</div><div>Stranka / naročnik</div></div>
-<div class="noga">Izpisano iz aplikacije DOMtim, ${new Date().toLocaleString('sl-SI')}</div>
-<script>window.onload = () => setTimeout(() => window.print(), 300);<\/script>
-</body></html>`;
+export async function natisniNalog(n, { obj, nap, dod, ust, profili = [] }) {
   const w = window.open('', '_blank');
   if (!w) return alert('Brskalnik je blokiral novo okno. Dovoli pojavna okna za to stran.');
-  w.document.write(html); w.document.close();
+  w.document.write('<p style="font:14px Arial;padding:20px">Pripravljam delovni nalog …</p>');
+  const [d, m] = await Promise.all([
+    sb.from('naloga_delo').select('*').eq('naloga_id', n.id).order('datum').order('id'),
+    sb.from('naloga_material').select('*').eq('naloga_id', n.id).order('id'),
+  ]);
+  const delo = d.data || [], mat = m.data || [];
+  let podpis = '';
+  if (n.podpis_pot) { const { data } = await sb.storage.from('dokumenti').createSignedUrl(n.podpis_pot, 600); podpis = data?.signedUrl || ''; }
+  const s = izracun(delo, mat, n.ddv);
+  // logo vgradimo neposredno v dokument, da je zagotovo na izpisu
+  let logo = new URL('ikone/logo-polni.png', location.href).href;
+  try {
+    const b = await (await fetch(logo)).blob();
+    logo = await new Promise((r) => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(b); });
+  } catch {}
+  const ime = (id) => profili.find((p) => p.id === id)?.ime || '';
+  const st = (x) => x == null ? '' : Number(x).toLocaleString('sl-SI', { maximumFractionDigits: 2 });
+  const eur = (x) => x ? fEur(x) : '';
+  const prazne = (k, stolpcev, prvaSirina = 1) => Array.from({ length: Math.max(0, k) }, () => `<tr><td colspan="${prvaSirina}">&nbsp;</td>${'<td></td>'.repeat(stolpcev - 1)}</tr>`).join('');
+  const del = delo.map((x) => `<tr><td>${fDatum(x.datum)}</td><td>${esc(ime(x.izvajalec_id))}</td><td>${x.od ? x.od.slice(0, 5) + '–' + (x.do || '').slice(0, 5) : ''}</td><td class="d">${st(x.ure)}</td><td class="d">${eur(x.cena)}</td><td class="d">${eur((x.ure || 0) * (x.cena || 0))}</td></tr>`).join('') + prazne(4 - delo.length, 6);
+  const mt = mat.map((x) => `<tr><td colspan="3">${esc(x.naziv)}</td><td class="d">${st(x.kolicina)} ${esc(x.enota || '')}</td><td class="d">${eur(x.cena)}</td><td class="d">${eur((x.kolicina || 0) * (x.cena || 0))}</td></tr>`).join('') + prazne(4 - mat.length, 4, 3);
+  const sestavil = ime(n.pregledal_id);
+  const html = `<!DOCTYPE html><html lang="sl"><head><meta charset="utf-8"><title>Delovni nalog ${n.id}</title>
+<style>
+  @page { size: A4; margin: 12mm; }
+  * { box-sizing: border-box; }
+  body { font: 9.5pt/1.3 Arial, sans-serif; color: #000; margin: 0; }
+  table { width: 100%; border-collapse: collapse; }
+  td, th { border: 1px solid #555; padding: 3px 5px; vertical-align: top; text-align: left; }
+  th { background: #eef2f6; font-weight: bold; font-size: 8.5pt; }
+  .d { text-align: right; white-space: nowrap; }
+  .glava td { border: none; padding: 0; vertical-align: middle; }
+  .glava img { height: 62px; }
+  .naslov { text-align: right; } .naslov b { font-size: 16pt; letter-spacing: .5px; display: block; } .naslov span { font-size: 12pt; }
+  .naslovnik { font-size: 8.5pt; color: #333; }
+  .lbl { width: 14%; background: #f6f8fa; font-weight: bold; font-size: 8.5pt; }
+  .sekcija { margin-top: 7px; }
+  .sekcija > caption { text-align: left; font-weight: bold; padding: 3px 0; caption-side: top; }
+  .opis { min-height: 60px; white-space: pre-wrap; }
+  .skupaj td { font-weight: bold; background: #eef2f6; }
+  .podpis { height: 62px; } .podpis img { max-height: 56px; max-width: 220px; }
+  .mali { font-size: 8pt; color: #444; }
+</style></head><body>
+<table class="glava"><tr>
+  <td><img src="${logo}" alt="DOMtim"><div class="naslovnik">Hrastinska pot 36, Brežice · info: 05 99 22 140</div></td>
+  <td class="naslov"><b>DELOVNI NALOG</b><span>št. ${n.id}</span></td>
+</tr></table>
+<table class="sekcija">
+  <tr><td class="lbl">Naročnik</td><td colspan="5">${esc(n.narocnik)}</td><td class="lbl">ID št.</td><td>${esc(n.narocnik_id_st)}</td></tr>
+  <tr><td class="lbl">Naročeno dne</td><td>${fDatum(n.created_at)}</td><td class="lbl">Začeto dne</td><td>${n.zacetek_at ? fDatum(n.zacetek_at) : ''}</td><td class="lbl">Končano dne</td><td>${n.opravljeno_at ? fDatum(n.opravljeno_at) : ''}</td><td class="lbl">SM</td><td>${esc(n.sm)}</td></tr>
+  <tr><td class="lbl">Objekt / stan. / posl. pr.</td><td colspan="5">${obj ? esc(obj.naziv + ', ' + obj.naslov + ', ' + obj.kraj) : ''}${nap ? '<br><span class="mali">' + esc(nap.tip + ' ' + (nap.proizvajalec || '') + ' ' + (nap.model || '')) + '</span>' : ''}</td><td class="lbl">DDV</td><td>${String(n.ddv).replace('.', ',')} %</td></tr>
+  <tr><td class="lbl">Prijavil</td><td colspan="3">${esc([n.prijavitelj, n.prijavitelj_kontakt].filter(Boolean).join(', '))}</td><td class="lbl">Kontakt. oseba</td><td colspan="3">${esc(n.kontaktna_oseba)}</td></tr>
+  <tr><td class="lbl">Izvajalec</td><td colspan="7">${esc([...new Set([dod?.ime, ...delo.map((x) => ime(x.izvajalec_id))].filter(Boolean))].join(', '))}</td></tr>
+</table>
+<table class="sekcija"><caption>OPIS NAROČILA / IZVEDBE DEL</caption><tr><td class="opis"><b>${esc(n.naslov)}</b>${n.opis ? '\n' + esc(n.opis) : ''}${n.porocilo ? '\n\nIzvedeno: ' + esc(n.porocilo) : ''}</td></tr></table>
+<table class="sekcija"><caption>I. SPECIFIKACIJA DELA</caption>
+  <tr><th>Datum</th><th>Izvajalec (ime in priimek)</th><th>Čas (od – do)</th><th class="d">Ure skupaj</th><th class="d">Cena/enoto</th><th class="d">Vrednost (brez DDV)</th></tr>
+  ${del}
+  <tr class="skupaj"><td colspan="5">Skupaj vrednost opravljenega dela (brez DDV) v EUR</td><td class="d">${eur(s.delo)}</td></tr>
+</table>
+<table class="sekcija"><caption>II. SPECIFIKACIJA MATERIALA</caption>
+  <tr><th colspan="3">Naziv materiala</th><th class="d">Količina</th><th class="d">Cena/enoto</th><th class="d">Vrednost (brez DDV)</th></tr>
+  ${mt}
+  <tr class="skupaj"><td colspan="5">Skupaj vrednost materiala (brez DDV) v EUR</td><td class="d">${eur(s.material)}</td></tr>
+</table>
+<table class="sekcija">
+  <tr class="skupaj"><td colspan="5">SKUPAJ VREDNOST STORITVE (I. delo + II. mat.) – osnova brez DDV</td><td class="d">${eur(s.osnova)}</td></tr>
+  <tr><td class="lbl">osnova za 9,5 %</td><td class="d">${eur(s.osnove[9.5])}</td><td class="lbl">znesek DDV 9,5 %</td><td class="d">${eur(s.ddv[9.5])}</td><td class="lbl">∑ osn. + DDV 9,5 %</td><td class="d">${eur(s.osnove[9.5] + s.ddv[9.5])}</td></tr>
+  <tr><td class="lbl">osnova za 22 %</td><td class="d">${eur(s.osnove[22])}</td><td class="lbl">znesek DDV 22 %</td><td class="d">${eur(s.ddv[22])}</td><td class="lbl">∑ osn. + DDV 22 %</td><td class="d">${eur(s.osnove[22] + s.ddv[22])}</td></tr>
+  <tr class="skupaj"><td colspan="5">SKUPAJ (osnova + DDV)</td><td class="d">${eur(s.skupaj)}</td></tr>
+</table>
+<table class="sekcija"><caption>PRIMOPREDAJA DEL</caption>
+  <tr><th>Izvajalec (ime in priimek / podpis / žig)</th><th>Naročnik – prevzemnik (ime in priimek / podpis / žig)</th><th>Datum</th></tr>
+  <tr><td class="podpis">${esc(dod?.ime || '')}</td><td class="podpis">${podpis ? `<img src="${podpis}" alt="podpis"><br>` : ''}${esc(n.podpis_ime || '')}${n.podpis_status === 'ni_prisoten' ? '<span class="mali">Stranka ni bila prisotna</span>' : ''}</td><td>${n.podpis_at ? fCas(n.podpis_at) : n.opravljeno_at ? fDatum(n.opravljeno_at) : ''}</td></tr>
+</table>
+<table class="sekcija"><caption>OBRAČUN DEL</caption>
+  <tr><th>Obračun sestavil (ime in priimek / podpis)</th><th>Datum</th><th>Številka računa</th></tr>
+  <tr><td style="height:34px">${esc(sestavil)}</td><td>${n.pregledano_at ? fDatum(n.pregledano_at) : ''}</td><td>${esc(n.stevilka_racuna)}</td></tr>
+</table>
+<p class="mali">Izpisano iz aplikacije DOMtim, ${new Date().toLocaleString('sl-SI')}</p>
+<script>Promise.all([...document.images].map((i) => i.complete ? 1 : new Promise((r) => { i.onload = i.onerror = r; setTimeout(r, 3000); }))).then(() => setTimeout(() => window.print(), 300));<\/script>
+</body></html>`;
+  w.document.open(); w.document.write(html); w.document.close();
 }

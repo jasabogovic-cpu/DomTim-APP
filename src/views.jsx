@@ -4,8 +4,9 @@ import {
   fDatum, fDatumKratko, fUra, fRelativno, fVelikost, fMinute, isoDan, danes, zamuja, rokDanes, dniDo, sortNaloge, varnoIme, mapsUrl,
 } from './lib.js';
 import { useData, Status, Prio, Kat, Avatar, Prazno, Kartica, Modal, Polje, KatIk, MapaIk } from './ui.jsx';
-import { CalendarDays, Clock, AlertTriangle, HardHat, Flame, History, List, Columns3, Search, Euro, Check, MapPin, Phone, Mail, User, Hand, Play, Coffee, ChevronLeft, ChevronRight, Building2, Home, Building, Inbox, Pencil, Archive, Image as ImageIk, FileText, Trash2, FolderOpen, ArrowRight, Plus, Upload, Sun, PhoneCall } from 'lucide-react';
+import { CalendarDays, Clock, AlertTriangle, HardHat, Flame, History, List, Columns3, Search, Euro, Check, MapPin, Phone, Mail, User, Hand, Play, Coffee, ChevronLeft, ChevronRight, Building2, Home, Building, Inbox, Pencil, Archive, Image as ImageIk, FileText, Trash2, FolderOpen, ArrowRight, Plus, Upload, Sun, PhoneCall, Download } from 'lucide-react';
 import { Datoteke, odpriDatoteko } from './naloga.jsx';
+import { izracun, fEur, CenikUrejevalnik } from './delovni.jsx';
 
 /* ---------- Vrstica naloga ---------- */
 export function NalogaVrstica({ n, kompaktno }) {
@@ -425,11 +426,11 @@ export function Objekti({ izbran }) {
 
 function ObjektObrazec({ objekt, onClose }) {
   const { profili, toast, osvezi } = useData();
-  const [f, setF] = useState({ naziv: objekt?.naziv || '', naslov: objekt?.naslov || '', kraj: objekt?.kraj || 'Brežice', tip: objekt?.tip || 'večstanovanjska', st_enot: objekt?.st_enot || '', leto_izgradnje: objekt?.leto_izgradnje || '', upravnik_id: objekt?.upravnik_id || '', opombe: objekt?.opombe || '' });
+  const [f, setF] = useState({ naziv: objekt?.naziv || '', naslov: objekt?.naslov || '', kraj: objekt?.kraj || 'Brežice', tip: objekt?.tip || 'večstanovanjska', st_enot: objekt?.st_enot || '', leto_izgradnje: objekt?.leto_izgradnje || '', upravnik_id: objekt?.upravnik_id || '', opombe: objekt?.opombe || '', narocnik: objekt?.narocnik || '', narocnik_id_st: objekt?.narocnik_id_st || '', sm: objekt?.sm || '', ddv: objekt?.ddv ?? 22 });
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
   const shrani = async (e) => {
     e.preventDefault();
-    const z = { ...f, st_enot: f.st_enot || null, leto_izgradnje: f.leto_izgradnje || null, upravnik_id: f.upravnik_id || null };
+    const z = { ...f, st_enot: f.st_enot || null, leto_izgradnje: f.leto_izgradnje || null, upravnik_id: f.upravnik_id || null, narocnik: f.narocnik || null, narocnik_id_st: f.narocnik_id_st || null, sm: f.sm || null, ddv: Number(f.ddv) };
     const { error } = objekt ? await sb.from('objekti').update(z).eq('id', objekt.id) : await sb.from('objekti').insert(z);
     if (error) return toast('Napaka: ' + error.message, true);
     toast('Shranjeno'); osvezi(); onClose();
@@ -445,6 +446,11 @@ function ObjektObrazec({ objekt, onClose }) {
         <Polje label="Št. enot"><input type="number" value={f.st_enot} onChange={set('st_enot')} /></Polje>
         <Polje label="Leto izgradnje"><input type="number" value={f.leto_izgradnje} onChange={set('leto_izgradnje')} /></Polje>
         <Polje label="Opombe (dostop, ključi, posebnosti)" siroko><textarea rows={3} value={f.opombe} onChange={set('opombe')} /></Polje>
+        <p className="namig siroko">Podatki za delovni nalog (samodejno se izpolnijo na vsakem novem nalogu za ta objekt):</p>
+        <Polje label="Naročnik" siroko><input value={f.narocnik} onChange={set('narocnik')} placeholder="npr. Etažni lastniki Cesta prvih borcev 12" /></Polje>
+        <Polje label="ID št. naročnika"><input value={f.narocnik_id_st} onChange={set('narocnik_id_st')} /></Polje>
+        <Polje label="SM (stroškovno mesto)"><input value={f.sm} onChange={set('sm')} /></Polje>
+        <Polje label="Privzeti DDV"><select value={f.ddv} onChange={set('ddv')}><option value={22}>22 %</option><option value={9.5}>9,5 %</option><option value={0}>0 %</option></select></Polje>
         <div className="gumbi siroko"><button type="button" className="gumb" onClick={onClose}>Prekliči</button><button className="gumb primarni">Shrani</button></div>
       </form>
     </Modal>
@@ -496,6 +502,8 @@ function ObjektPodrobno({ id }) {
               {o.leto_izgradnje && <><dt>Leto izgradnje</dt><dd>{o.leto_izgradnje}</dd></>}
               <dt>Upravnik</dt><dd className="oseba">{up ? <><Avatar p={up} size={22} /> {up.ime}</> : '–'}</dd>
               {o.opombe && <><dt>Opombe</dt><dd>{o.opombe}</dd></>}
+              {o.narocnik && <><dt>Naročnik</dt><dd>{o.narocnik}{o.narocnik_id_st ? <><br /><small>ID {o.narocnik_id_st}</small></> : ''}</dd></>}
+              {o.sm && <><dt>SM</dt><dd>{o.sm}</dd></>}
             </dl>
           </Kartica>
           <Kartica naslov="Kontakti">
@@ -712,71 +720,100 @@ export function Ekipa() {
 
 /* ---------- OBRAČUN (za računovodstvo) ---------- */
 export function Obracun() {
-  const { naloge, profili, objekti, me, odpriNalogo, toast } = useData();
-  const [zavihek, setZavihek] = useState('odprto');
+  const { naloge, profili, objekti, me, odpriNalogo, toast, verzija } = useData();
+  const [zavihek, setZavihek] = useState('pregled');
   const [izbrani, setIzbrani] = useState([]);
+  const [postavke, setPostavke] = useState({ delo: [], material: [] });
   const zaRacun = naloge.filter((n) => n.status === 'opravljena' && n.za_racun);
-  const odprto = zaRacun.filter((n) => !n.obracunano_at).sort((a, b) => (a.opravljeno_at || '').localeCompare(b.opravljeno_at || ''));
-  const obracunano = zaRacun.filter((n) => n.obracunano_at).sort((a, b) => b.obracunano_at.localeCompare(a.obracunano_at)).slice(0, 100);
-  const seznam = zavihek === 'odprto' ? odprto : obracunano;
-  const skupajMin = odprto.reduce((s, n) => s + (n.porabljen_cas_min || 0), 0);
+  const ids = zaRacun.map((n) => n.id).join(',');
+  useEffect(() => {
+    if (!ids) return;
+    const seznam = ids.split(',').map(Number);
+    Promise.all([sb.from('naloga_delo').select('*').in('naloga_id', seznam), sb.from('naloga_material').select('*').in('naloga_id', seznam)])
+      .then(([d, m]) => setPostavke({ delo: d.data || [], material: m.data || [] }));
+  }, [ids, verzija]);
+  const vsota = (n) => izracun(postavke.delo.filter((d) => d.naloga_id === n.id), postavke.material.filter((m) => m.naloga_id === n.id), n.ddv);
 
-  const oznaci = async (ids, vrednost) => {
-    const { error } = await sb.from('naloge').update(vrednost ? { obracunano_at: new Date().toISOString(), obracunal_id: me.id } : { obracunano_at: null, obracunal_id: null }).in('id', ids);
+  const faze = {
+    pregled: zaRacun.filter((n) => !n.pregledano_at && !n.obracunano_at).sort((a, b) => (a.opravljeno_at || '').localeCompare(b.opravljeno_at || '')),
+    izdaja: zaRacun.filter((n) => n.pregledano_at && !n.obracunano_at).sort((a, b) => a.pregledano_at.localeCompare(b.pregledano_at)),
+    zaracunano: zaRacun.filter((n) => n.obracunano_at).sort((a, b) => b.obracunano_at.localeCompare(a.obracunano_at)).slice(0, 200),
+  };
+  const seznam = faze[zavihek] || [];
+  const zIzbira = zavihek === 'pregled' || zavihek === 'izdaja';
+  const vrednostOdprto = [...faze.pregled, ...faze.izdaja].reduce((x, n) => x + vsota(n).skupaj, 0);
+
+  const premakni = async (idsx, z, msg) => {
+    const { error } = await sb.from('naloge').update(z).in('id', idsx);
     if (error) return toast('Napaka: ' + error.message, true);
-    toast(vrednost ? `Obračunano: ${ids.length}` : 'Vrnjeno med neobračunane');
-    setIzbrani([]);
+    toast(msg); setIzbrani([]);
   };
   const preklopi = (id) => setIzbrani((x) => x.includes(id) ? x.filter((y) => y !== id) : [...x, id]);
+
+  const izvozi = () => {
+    const f = (x) => (x == null ? '' : String(x).replace('.', ','));
+    const q = (x) => `"${String(x ?? '').replace(/"/g, '""')}"`;
+    const glava = ['Št. naloga', 'Naslov', 'Naročnik', 'ID št.', 'SM', 'Objekt', 'Izvajalec', 'Končano', 'Ure', 'Delo (brez DDV)', 'Material (brez DDV)', 'Osnova 9,5 %', 'DDV 9,5 %', 'Osnova 22 %', 'DDV 22 %', 'Skupaj z DDV', 'Pregledal', 'Št. računa'];
+    const vrstice = seznam.map((n) => {
+      const v = vsota(n); const o = objekti.find((x) => x.id === n.objekt_id);
+      return [n.id, q(n.naslov), q(n.narocnik), q(n.narocnik_id_st), q(n.sm), q(o?.naziv), q(profili.find((p) => p.id === n.dodeljeno_id)?.ime), fDatum(n.opravljeno_at), f(v.ure), f(v.delo), f(v.material), f(v.osnove[9.5]), f(v.ddv[9.5]), f(v.osnove[22]), f(v.ddv[22]), f(v.skupaj), q(profili.find((p) => p.id === n.pregledal_id)?.ime), q(n.stevilka_racuna)].join(';');
+    });
+    const blob = new Blob(['﻿' + [glava.join(';'), ...vrstice].join('\r\n')], { type: 'text/csv;charset=utf-8' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+    a.download = `obracun-${zavihek}-${isoDan(new Date())}.csv`; a.click(); URL.revokeObjectURL(a.href);
+  };
 
   return (
     <div className="stran">
       <div className="stran-glava">
-        <div><h1>Obračun</h1><p className="podnaslov">Opravljeni delovni nalogi, ki se zaračunajo</p></div>
-        {zavihek === 'odprto' && izbrani.length > 0 && (
-          <button className="gumb uspeh" onClick={() => oznaci(izbrani, true)}><Check size={16} /> Označi kot obračunano ({izbrani.length})</button>
-        )}
+        <div><h1>Obračun</h1><p className="podnaslov">Zaključeni delovni nalogi → pregled → račun</p></div>
+        <div className="glava-desno">
+          {zavihek !== 'cenik' && seznam.length > 0 && <button className="gumb" onClick={izvozi}><Download size={16} /> Izvozi v Excel</button>}
+          {zavihek === 'pregled' && izbrani.length > 0 && <button className="gumb uspeh" onClick={() => premakni(izbrani, { pregledano_at: new Date().toISOString(), pregledal_id: me.id }, `Pregledano: ${izbrani.length}`)}><Check size={16} /> Pregledano ({izbrani.length})</button>}
+          {zavihek === 'izdaja' && izbrani.length > 0 && <button className="gumb uspeh" onClick={() => premakni(izbrani, { obracunano_at: new Date().toISOString(), obracunal_id: me.id }, `Zaračunano: ${izbrani.length}`)}><Check size={16} /> Zaračunano ({izbrani.length})</button>}
+        </div>
       </div>
-      <div className="kpi-vrsta kpi-3">
-        <div className="kpi kpi-oranzen"><b>{odprto.length}</b><span>Čaka na obračun</span></div>
-        <div className="kpi"><b>{fMinute(skupajMin)}</b><span>Evidentiranega dela</span></div>
-        <div className="kpi kpi-zelen"><b>{zaRacun.filter((n) => n.obracunano_at && new Date(n.obracunano_at) >= new Date(new Date().getFullYear(), new Date().getMonth(), 1)).length}</b><span>Obračunanih ta mesec</span></div>
+      <div className="kpi-vrsta">
+        <button className="kpi kpi-oranzen" onClick={() => setZavihek('pregled')}><b>{faze.pregled.length}</b><span>Čaka na pregled</span></button>
+        <button className="kpi" onClick={() => setZavihek('izdaja')}><b>{faze.izdaja.length}</b><span>Za izdajo računa</span></button>
+        <div className="kpi"><b>{fEur(vrednostOdprto)}</b><span>Še nezaračunano (z DDV)</span></div>
+        <div className="kpi kpi-zelen"><b>{zaRacun.filter((n) => n.obracunano_at && new Date(n.obracunano_at) >= new Date(new Date().getFullYear(), new Date().getMonth(), 1)).length}</b><span>Zaračunanih ta mesec</span></div>
       </div>
       <div className="zavihki">
-        <button className={zavihek === 'odprto' ? 'on' : ''} onClick={() => setZavihek('odprto')}>Za obračun<span>{odprto.length}</span></button>
-        <button className={zavihek === 'obracunano' ? 'on' : ''} onClick={() => { setZavihek('obracunano'); setIzbrani([]); }}>Obračunano</button>
+        {[['pregled', '1. Za pregled', faze.pregled.length], ['izdaja', '2. Za izdajo računa', faze.izdaja.length], ['zaracunano', '3. Zaračunano', null], ['cenik', 'Cenik', null]].map(([k, l, c]) => (
+          <button key={k} className={zavihek === k ? 'on' : ''} onClick={() => { setZavihek(k); setIzbrani([]); }}>{l}{c != null && <span>{c}</span>}</button>
+        ))}
       </div>
-      <div className="kartica brez-roba">
-        {seznam.length ? (
-          <table className="tabela obracun">
-            <thead><tr>
-              {zavihek === 'odprto' && <th className="izbira"><input type="checkbox" checked={izbrani.length === odprto.length && odprto.length > 0} onChange={(e) => setIzbrani(e.target.checked ? odprto.map((n) => n.id) : [])} /></th>}
-              <th>Nalog</th><th>Objekt</th><th>Izvajalec</th><th>Opravljeno</th><th>Čas</th><th>Material</th><th />
-            </tr></thead>
-            <tbody>
-              {seznam.map((n) => {
-                const o = objekti.find((x) => x.id === n.objekt_id); const p = profili.find((x) => x.id === n.dodeljeno_id); const ob = profili.find((x) => x.id === n.obracunal_id);
-                return (
-                  <tr key={n.id} onClick={() => odpriNalogo(n.id)}>
-                    {zavihek === 'odprto' && <td className="izbira" onClick={(e) => e.stopPropagation()}><input type="checkbox" checked={izbrani.includes(n.id)} onChange={() => preklopi(n.id)} /></td>}
-                    <td><span className="st-naloga">#{n.id}</span> <b>{n.naslov}</b><div className="pod porocilo-kratko">{n.porocilo || <em>brez poročila</em>}</div></td>
-                    <td>{o?.naziv || <span className="sivo">–</span>}</td>
-                    <td>{p ? <span className="oseba"><Avatar p={p} size={22} /> {p.ime.split(' ')[0]}</span> : '–'}</td>
-                    <td>{fDatum(n.opravljeno_at)}{zavihek === 'obracunano' && <div className="pod">obračunano {fDatum(n.obracunano_at)}{ob ? ` · ${ob.ime.split(' ')[0]}` : ''}</div>}</td>
-                    <td>{fMinute(n.porabljen_cas_min)}</td>
-                    <td className="material">{n.material || <span className="sivo">–</span>}</td>
-                    <td className="desno" onClick={(e) => e.stopPropagation()}>
-                      {zavihek === 'odprto'
-                        ? <button className="gumb mali" onClick={() => oznaci([n.id], true)}><Check size={14} /> Obračunano</button>
-                        : <button className="gumb mali" onClick={() => oznaci([n.id], false)}>Vrni</button>}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        ) : <Prazno ikona={zavihek === 'odprto' ? Check : Inbox}>{zavihek === 'odprto' ? 'Vse je obračunano.' : 'Še ni obračunanih nalogov.'}</Prazno>}
-      </div>
+      {zavihek === 'cenik' ? <CenikUrejevalnik /> : (
+        <div className="kartica brez-roba">
+          {seznam.length ? (
+            <table className="tabela obracun">
+              <thead><tr>
+                {zIzbira && <th className="izbira"><input type="checkbox" checked={izbrani.length === seznam.length} onChange={(e) => setIzbrani(e.target.checked ? seznam.map((n) => n.id) : [])} /></th>}
+                <th>Nalog</th><th>Naročnik / objekt</th><th>Izvajalec</th><th>Končano</th><th>Ure</th><th className="d">Skupaj z DDV</th><th>Podpis</th>
+              </tr></thead>
+              <tbody>
+                {seznam.map((n) => {
+                  const o = objekti.find((x) => x.id === n.objekt_id); const p = profili.find((x) => x.id === n.dodeljeno_id); const v = vsota(n);
+                  return (
+                    <tr key={n.id} onClick={() => odpriNalogo(n.id)}>
+                      {zIzbira && <td className="izbira" onClick={(e) => e.stopPropagation()}><input type="checkbox" checked={izbrani.includes(n.id)} onChange={() => preklopi(n.id)} /></td>}
+                      <td><span className="st-naloga">#{n.id}</span> <b>{n.naslov}</b><div className="pod porocilo-kratko">{n.porocilo || <em>brez opisa</em>}</div></td>
+                      <td>{n.narocnik || <span className="sivo">–</span>}<div className="pod">{o?.naziv}{n.sm ? ' · ' + n.sm : ''}</div></td>
+                      <td>{p ? <span className="oseba"><Avatar p={p} size={22} /> {p.ime.split(' ')[0]}</span> : '–'}</td>
+                      <td>{fDatum(n.opravljeno_at)}{zavihek === 'zaracunano' && <div className="pod">{n.stevilka_racuna ? 'račun ' + n.stevilka_racuna : fDatum(n.obracunano_at)}</div>}</td>
+                      <td>{v.ure ? v.ure + ' h' : '–'}</td>
+                      <td className="d"><b>{fEur(v.skupaj)}</b>{v.manjkaCena && <div className="pod rdece">manjka cena</div>}</td>
+                      <td>{n.podpis_status === 'podpisano' ? <span className="zeleno"><Check size={14} className="ik" /> da</span> : n.podpis_status === 'ni_prisoten' ? <span className="sivo">ni prisoten</span> : <span className="sivo">–</span>}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          ) : <Prazno ikona={Check}>{zavihek === 'pregled' ? 'Ni nalogov za pregled.' : zavihek === 'izdaja' ? 'Ni nalogov, ki čakajo na račun.' : 'Še ni zaračunanih nalogov.'}</Prazno>}
+        </div>
+      )}
+      {zIzbira && seznam.length > 0 && <p className="namig mt">{zavihek === 'pregled' ? 'Odpri nalog, preveri ure, material in cene, nato ga označi kot pregledanega. Številko računa vpišeš v nalogu.' : 'Po izdaji računa nalog označi kot zaračunan (v nalogu lahko vpišeš številko računa).'}</p>}
     </div>
   );
 }
