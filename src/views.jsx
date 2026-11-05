@@ -679,7 +679,7 @@ export function Dokumenti() {
                     <td>{o?.naziv || <span className="sivo">splošno</span>}</td>
                     <td>{p?.ime.split(' ')[0]}<div className="pod">{fRelativno(d.created_at)}</div></td>
                     <td>{fVelikost(d.velikost)}</td>
-                    <td className="desno">{(me.vloga !== 'teren' || d.nalozil_id === me.id) && <button className="ikona-gumb" onClick={(e) => { e.stopPropagation(); izbrisi(d); }} title="Izbriši"><Trash2 size={16} /></button>}</td>
+                    <td className="desno">{(me.vloga === 'vodja' || d.nalozil_id === me.id) && <button className="ikona-gumb" onClick={(e) => { e.stopPropagation(); izbrisi(d); }} title="Izbriši"><Trash2 size={16} /></button>}</td>
                   </tr>
                 );
               })}

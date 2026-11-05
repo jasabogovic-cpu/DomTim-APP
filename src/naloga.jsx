@@ -212,7 +212,7 @@ export function NalogaPodrobno({ id, onClose }) {
           </dl>
           {lahkoUreja && <button className="gumb polna" onClick={() => setUredi(true)}><Pencil size={15} /> Uredi nalog</button>}
           <button className="gumb polna" onClick={() => natisniNalog(n, { obj, nap, dod, ust, profili })}><Printer size={15} /> Natisni / PDF</button>
-          {pisarna && <button className="gumb polna nevarno" onClick={izbrisi}>Izbriši</button>}
+          {me.vloga === 'vodja' && <button className="gumb polna nevarno" onClick={izbrisi}>Izbriši</button>}
         </aside>
       </div>
       {uredi && <NalogaObrazec naloga={n} onClose={() => setUredi(false)} />}
