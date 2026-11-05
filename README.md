@@ -33,3 +33,17 @@ npm install
 | Teren | teren1@domtim.demo (serviser), teren2@domtim.demo (vzdrževalec), teren3@domtim.demo (hišnik) |
 
 Pred pravo uporabo zamenjaj gesla in računom dodaj prave e-naslove zaposlenih.
+
+## Nočna varnostna kopija
+
+GitHub Actions (`.github/workflows/nocna-kopija.yml`) vsako noč ob 2:30 izvozi bazo (sheme `public`, `auth`, `storage`), jo šifrira z AES256 in shrani kot artifact za 30 dni. Datoteke iz Storage (slike, PDF-ji) niso vključene.
+
+Potrebna skrivnosti (Settings → Secrets and variables → Actions):
+- `SUPABASE_DB_URL` – Supabase → Connect → **Session pooler** (URI z geslom baze)
+- `BACKUP_GESLO` – geslo za šifriranje; shrani ga varno, brez njega kopije ni mogoče odpreti
+
+Obnova:
+```
+gpg -d domtim-LLLL-MM-DD.dump.gpg > kopija.dump
+pg_restore --no-owner --clean --if-exists -d "<SUPABASE_DB_URL>" kopija.dump
+```

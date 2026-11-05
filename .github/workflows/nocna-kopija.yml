@@ -1,0 +1,44 @@
+name: Nočna varnostna kopija baze
+
+on:
+  schedule:
+    - cron: '30 1 * * *'   # vsako noč ob 2:30 po slovenskem času (1:30 UTC pozimi)
+  workflow_dispatch:        # ročni zagon: Actions → Nočna varnostna kopija baze → Run workflow
+
+jobs:
+  kopija:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Namesti pg_dump 17
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSo /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client-17
+
+      - name: Izvozi bazo (podatki + uporabniki)
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          IME=domtim-$(date -u +%Y-%m-%d)
+          /usr/lib/postgresql/17/bin/pg_dump "$DB_URL" \
+            --schema=public --schema=auth --schema=storage \
+            --no-owner --no-privileges --format=custom \
+            --file="$IME.dump"
+          echo "IME=$IME" >> $GITHUB_ENV
+          ls -lh "$IME.dump"
+
+      - name: Šifriraj kopijo (repozitorij je javen!)
+        env:
+          GESLO: ${{ secrets.BACKUP_GESLO }}
+        run: |
+          gpg --batch --yes --pinentry-mode loopback --passphrase "$GESLO" \
+              --symmetric --cipher-algo AES256 -o "$IME.dump.gpg" "$IME.dump"
+          rm "$IME.dump"
+
+      - name: Shrani kopijo (30 dni)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.IME }}
+          path: ${{ env.IME }}.dump.gpg
+          retention-days: 30
