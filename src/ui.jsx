@@ -68,3 +68,39 @@ export function Kartica({ naslov, desno, children, className = '' }) {
     </section>
   );
 }
+
+/** Več delavcev na nalogu: prekrivajoči se krogci */
+export function Avatarji({ ljudje, size = 26 }) {
+  if (!ljudje.length) return <Avatar p={null} size={size} />;
+  return (
+    <span className="avatarji" title={ljudje.map((p) => p.ime).join(', ')}>
+      {ljudje.slice(0, 3).map((p) => <Avatar key={p.id} p={p} size={size} />)}
+      {ljudje.length > 3 && <span className="avatar vec" style={{ width: size, height: size, fontSize: size * 0.38 }}>+{ljudje.length - 3}</span>}
+    </span>
+  );
+}
+
+/** Izbira enega ali več delavcev (prvi je glavni) */
+export function DelavciIzbira({ profili, izbrani, onChange, samoTeren = false }) {
+  const seznam = samoTeren ? profili.filter((p) => p.vloga === 'teren') : [...profili.filter((p) => p.vloga === 'teren'), ...profili.filter((p) => p.vloga !== 'teren')];
+  const preklopi = (id) => onChange(izbrani.includes(id) ? izbrani.filter((x) => x !== id) : [...izbrani, id]);
+  return (
+    <div className="delavci-izbira">
+      {seznam.map((p) => (
+        <button type="button" key={p.id} className={izbrani.includes(p.id) ? 'on' : ''} onClick={() => preklopi(p.id)} title={p.delovno_mesto || ''}>
+          <Avatar p={p} size={24} /> {p.ime.split(' ')[0]}{p.vloga !== 'teren' && <small> (pisarna)</small>}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** Zaračuna se / delo po pogodbi */
+export function NacinIzbira({ zaRacun, onChange }) {
+  return (
+    <div className="segment">
+      <button type="button" className={zaRacun ? 'on' : ''} onClick={() => onChange(true)}>Zaračuna se</button>
+      <button type="button" className={!zaRacun ? 'on' : ''} onClick={() => onChange(false)}>Delo po pogodbi</button>
+    </div>
+  );
+}

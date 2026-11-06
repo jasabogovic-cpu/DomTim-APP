@@ -1,45 +1,80 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   sb, STATUSI, PRIORITETE, KATEGORIJE, VIRI, MAPE, MAPA_IKONA, fDatum, fCas, fRelativno, fVelikost, fMinute,
-  isoDan, zamuja, varnoIme, mapsUrl,
+  isoDan, zamuja, varnoIme, mapsUrl, dodeljeni, jeDodeljen, stisniSliko,
 } from './lib.js';
-import { useData, Status, Prio, Kat, Avatar, Modal, Polje, MapaIk } from './ui.jsx';
+import { useData, Status, Prio, Kat, Avatar, Avatarji, Modal, Polje, MapaIk, DelavciIzbira, NacinIzbira } from './ui.jsx';
 import { ZakljuciObrazec, DelovniNalog, izracun, fEur } from './delovni.jsx';
-import { Euro, Hand, Play, Pause, Check, RotateCcw, MapPin, Phone, Mail, Pencil, Paperclip, Trash2, ChevronLeft, ChevronRight, X, AlertTriangle, Printer } from 'lucide-react';
+import { Euro, Hand, Play, Pause, Check, RotateCcw, MapPin, Phone, Mail, Pencil, Paperclip, Trash2, ChevronLeft, ChevronRight, X, AlertTriangle, Printer, Camera } from 'lucide-react';
+
+/* ---------- Fotografije ob ustvarjanju naloga ---------- */
+export function FotoIzbira({ datoteke, setDatoteke }) {
+  const vhod = useRef();
+  const [predogledi, setPredogledi] = useState([]);
+  useEffect(() => {
+    const u = datoteke.map((f) => URL.createObjectURL(f)); setPredogledi(u);
+    return () => u.forEach((x) => URL.revokeObjectURL(x));
+  }, [datoteke]);
+  return (
+    <div className="foto-izbira">
+      {predogledi.map((u, i) => (
+        <span key={u} className="foto-mini"><img src={u} alt="" /><button type="button" onClick={() => setDatoteke(datoteke.filter((_, j) => j !== i))} aria-label="Odstrani"><X size={12} /></button></span>
+      ))}
+      <button type="button" className="gumb mali" onClick={() => vhod.current.click()}><Camera size={15} /> {datoteke.length ? 'Dodaj še' : 'Dodaj fotografijo'}</button>
+      <input ref={vhod} type="file" accept="image/*" multiple hidden onChange={(e) => { setDatoteke([...datoteke, ...e.target.files]); e.target.value = ''; }} />
+    </div>
+  );
+}
+
+export async function naloziFotografije(naloga, datoteke, uid) {
+  for (const izvorna of datoteke) {
+    const file = await stisniSliko(izvorna);
+    const pot = `${varnoIme('Fotografije s terena')}/${naloga.objekt_id || 'splosno'}/${Date.now()}_${varnoIme(file.name)}`;
+    const up = await sb.storage.from('dokumenti').upload(pot, file, { contentType: file.type });
+    if (up.error) throw up.error;
+    await sb.from('dokumenti').insert({ ime: file.name, pot, mapa: 'Fotografije s terena', velikost: file.size, mime: file.type, objekt_id: naloga.objekt_id || null, naloga_id: naloga.id, nalozil_id: uid });
+  }
+}
 
 /* ---------- Obrazec za nov / urejanje naloga ---------- */
 export function NalogaObrazec({ naloga, privzeto = {}, onClose, onSaved }) {
   const { profili, objekti, naprave, me, toast } = useData();
   const nov = !naloga;
   const [f, setF] = useState(() => {
-    const n = naloga || {};
+    const n = { ...(naloga || {}), ...privzeto };
     return {
-      naslov: n.naslov || '', opis: n.opis || '', objekt_id: n.objekt_id || '', naprava_id: n.naprava_id || '',
+      naslov: n.naslov || '', opis: n.opis || '', objekt_id: n.objekt_id || (n.lokacija ? 'drugo' : ''), lokacija: n.lokacija || '', naprava_id: n.naprava_id || '',
       kategorija: n.kategorija || 'vzdrževanje', prioriteta: n.prioriteta || 'normalna',
-      dodeljeno_id: n.dodeljeno_id || '', rok: n.rok || '', termin: n.termin ? toLocalInput(n.termin) : '',
-      vir: n.vir || 'telefon', prijavitelj: n.prijavitelj || '', prijavitelj_kontakt: n.prijavitelj_kontakt || '',
-      za_racun: n.za_racun || false, ...privzeto,
+      izvajalci: dodeljeni(n), rok: n.rok || '', termin: n.termin ? toLocalInput(n.termin) : '',
+      vir: n.vir || 'telefon', prijavitelj: n.prijavitelj || '', prijavitelj_kontakt: n.prijavitelj_kontakt || '', email_stranke: n.email_stranke || '',
+      za_racun: n.za_racun ?? true,
     };
   });
+  const [fotke, setFotke] = useState([]);
   const [shranjujem, setShranjujem] = useState(false);
   const set = (k) => (e) => setF({ ...f, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value });
   const pisarna = me.vloga !== 'teren';
-  const napraveObj = naprave.filter((n) => String(n.objekt_id) === String(f.objekt_id));
+  const drugo = f.objekt_id === 'drugo';
+  const napraveObj = drugo ? [] : naprave.filter((n) => String(n.objekt_id) === String(f.objekt_id));
 
   const shrani = async (e) => {
     e.preventDefault();
     if (!f.naslov.trim()) return;
+    if (drugo && !f.lokacija.trim()) return toast('Vpiši naslov / stranko za »Drugo«.', true);
     setShranjujem(true);
+    const { izvajalci, ...ostalo } = f;
     const zapis = {
-      ...f,
-      objekt_id: f.objekt_id || null, naprava_id: f.naprava_id || null, dodeljeno_id: f.dodeljeno_id || null,
-      rok: f.rok || null, termin: f.termin ? new Date(f.termin).toISOString() : null,
+      ...ostalo,
+      objekt_id: drugo ? null : f.objekt_id || null, lokacija: drugo ? f.lokacija.trim() : null,
+      naprava_id: f.naprava_id || null, dodeljeno_id: izvajalci[0] || null, sodelavci: izvajalci.slice(1),
+      rok: f.rok || null, termin: f.termin ? new Date(f.termin).toISOString() : null, email_stranke: f.email_stranke.trim() || null,
     };
     if (nov && zapis.dodeljeno_id) zapis.status = 'dodeljena';
     const q = nov ? sb.from('naloge').insert(zapis).select().single() : sb.from('naloge').update(zapis).eq('id', naloga.id).select().single();
     const { data, error } = await q;
+    if (error) { setShranjujem(false); return toast('Napaka: ' + error.message, true); }
+    if (fotke.length) { try { await naloziFotografije(data, fotke, me.id); } catch (err) { toast('Nalog je shranjen, fotografije pa ne: ' + err.message, true); } }
     setShranjujem(false);
-    if (error) return toast('Napaka: ' + error.message, true);
     toast(nov ? `Nalog #${data.id} ustvarjen` : 'Shranjeno');
     onSaved?.(data);
     onClose();
@@ -55,14 +90,21 @@ export function NalogaObrazec({ naloga, privzeto = {}, onClose, onSaved }) {
           <select value={f.objekt_id} onChange={(e) => setF({ ...f, objekt_id: e.target.value, naprava_id: '' })}>
             <option value="">— brez objekta —</option>
             {objekti.map((o) => <option key={o.id} value={o.id}>{o.naziv} ({o.naslov})</option>)}
+            <option value="drugo">➕ Drugo / nova stranka …</option>
           </select>
         </Polje>
-        <Polje label="Naprava">
-          <select value={f.naprava_id} onChange={set('naprava_id')} disabled={!napraveObj.length}>
-            <option value="">— {napraveObj.length ? 'izberi' : 'ni naprav'} —</option>
-            {napraveObj.map((n) => <option key={n.id} value={n.id}>{n.tip} – {n.proizvajalec} {n.model}</option>)}
-          </select>
-        </Polje>
+        {drugo ? (
+          <Polje label="Naslov in stranka *">
+            <input value={f.lokacija} onChange={set('lokacija')} placeholder="npr. Novak, Cesta 5, Brežice" />
+          </Polje>
+        ) : (
+          <Polje label="Naprava">
+            <select value={f.naprava_id} onChange={set('naprava_id')} disabled={!napraveObj.length}>
+              <option value="">— {napraveObj.length ? 'izberi' : 'ni naprav'} —</option>
+              {napraveObj.map((n) => <option key={n.id} value={n.id}>{n.tip} – {n.proizvajalec} {n.model}</option>)}
+            </select>
+          </Polje>
+        )}
         <Polje label="Kategorija">
           <select value={f.kategorija} onChange={set('kategorija')}>
             {KATEGORIJE.map((k) => <option key={k}>{k}</option>)}
@@ -76,17 +118,10 @@ export function NalogaObrazec({ naloga, privzeto = {}, onClose, onSaved }) {
           </div>
         </Polje>
         {pisarna && (
-          <Polje label="Dodeli delavcu">
-            <select value={f.dodeljeno_id} onChange={set('dodeljeno_id')}>
-              <option value="">— nedodeljeno —</option>
-              <optgroup label="Teren">
-                {profili.filter((p) => p.vloga === 'teren').map((p) => <option key={p.id} value={p.id}>{p.ime} – {p.delovno_mesto}</option>)}
-              </optgroup>
-              <optgroup label="Pisarna">
-                {profili.filter((p) => p.vloga !== 'teren').map((p) => <option key={p.id} value={p.id}>{p.ime}</option>)}
-              </optgroup>
-            </select>
-          </Polje>
+          <div className="polje siroko">
+            <span>Dodeli delavcem {f.izvajalci.length > 1 && <small>(prvi izbrani je glavni izvajalec)</small>}</span>
+            <DelavciIzbira profili={profili} izbrani={f.izvajalci} onChange={(x) => setF({ ...f, izvajalci: x })} />
+          </div>
         )}
         <Polje label="Rok">
           <input type="date" value={f.rok} onChange={set('rok')} />
@@ -101,14 +136,16 @@ export function NalogaObrazec({ naloga, privzeto = {}, onClose, onSaved }) {
           <input value={f.prijavitelj} onChange={set('prijavitelj')} placeholder="Ime in priimek / stanovanje" />
         </Polje>
         <Polje label="Kontakt prijavitelja">
-          <input value={f.prijavitelj_kontakt} onChange={set('prijavitelj_kontakt')} placeholder="Telefon ali e-pošta" />
+          <input value={f.prijavitelj_kontakt} onChange={set('prijavitelj_kontakt')} placeholder="Telefon" />
+        </Polje>
+        <Polje label="E-pošta stranke (za PDF)">
+          <input type="email" value={f.email_stranke} onChange={set('email_stranke')} placeholder="stranka@primer.si" />
         </Polje>
         <Polje label="Opis" siroko>
           <textarea rows={4} value={f.opis} onChange={set('opis')} placeholder="Kaj je narobe, kje točno, dostop (ključ, koda), posebnosti ..." />
         </Polje>
-        <label className="potrditev siroko">
-          <input type="checkbox" checked={f.za_racun} onChange={set('za_racun')} /> Delo se zaračuna (gre v obračun)
-        </label>
+        <div className="polje"><span>Način</span><NacinIzbira zaRacun={f.za_racun} onChange={(v) => setF({ ...f, za_racun: v })} /></div>
+        {nov && <div className="polje siroko"><span>Fotografije</span><FotoIzbira datoteke={fotke} setDatoteke={setFotke} /></div>}
         <div className="gumbi siroko">
           <button type="button" className="gumb" onClick={onClose}>Prekliči</button>
           <button className="gumb primarni" disabled={shranjujem}>{shranjujem ? 'Shranjujem …' : nov ? 'Ustvari nalog' : 'Shrani'}</button>
@@ -132,10 +169,11 @@ export function NalogaPodrobno({ id, onClose }) {
   if (!n) return null;
   const obj = objekti.find((o) => o.id === n.objekt_id);
   const nap = naprave.find((x) => x.id === n.naprava_id);
-  const dod = profili.find((p) => p.id === n.dodeljeno_id);
+  const dodVsi = dodeljeni(n).map((id) => profili.find((p) => p.id === id)).filter(Boolean);
+  const dod = dodVsi[0];
   const ust = profili.find((p) => p.id === n.ustvaril_id);
   const pisarna = me.vloga !== 'teren';
-  const lahkoUreja = pisarna || n.dodeljeno_id === me.id || !n.dodeljeno_id;
+  const lahkoUreja = pisarna || jeDodeljen(n, me.id) || !n.dodeljeno_id;
 
   const status = async (s, extra = {}) => {
     const { error } = await sb.from('naloge').update({ status: s, ...extra }).eq('id', n.id);
@@ -199,10 +237,10 @@ export function NalogaPodrobno({ id, onClose }) {
         <aside className="podrobno-stran">
           <dl className="lastnosti">
             <dt>Objekt</dt>
-            <dd>{obj ? <><a onClick={() => { onClose(); odpriObjekt(obj.id); }}>{obj.naziv}</a><br /><small>{obj.naslov}, {obj.kraj}</small><br /><a href={mapsUrl(obj)} target="_blank" rel="noreferrer" className="mala-povezava"><MapPin size={13} className="ik" /> Navigacija</a></> : '–'}</dd>
+            <dd>{obj ? <><a onClick={() => { onClose(); odpriObjekt(obj.id); }}>{obj.naziv}</a><br /><small>{obj.naslov}, {obj.kraj}</small><br /><a href={mapsUrl(obj)} target="_blank" rel="noreferrer" className="mala-povezava"><MapPin size={13} className="ik" /> Navigacija</a></> : n.lokacija ? <>{n.lokacija}<br /><a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(n.lokacija)}`} target="_blank" rel="noreferrer" className="mala-povezava"><MapPin size={13} className="ik" /> Navigacija</a></> : '–'}</dd>
             {nap && <><dt>Naprava</dt><dd>{nap.tip}<br /><small>{nap.proizvajalec} {nap.model} · {nap.lokacija}</small></dd></>}
             <dt>Dodeljeno</dt>
-            <dd className="oseba">{dod ? <><Avatar p={dod} size={22} /> {dod.ime}</> : <span className="sivo">Nedodeljeno</span>}</dd>
+            <dd className="dodeljeni-seznam">{dodVsi.length ? dodVsi.map((p) => <span key={p.id} className="oseba"><Avatar p={p} size={22} /> {p.ime}</span>) : <span className="sivo">Nedodeljeno</span>}</dd>
             <dt>Rok</dt><dd className={zamuja(n) ? 'rdece' : ''}>{fDatum(n.rok)}</dd>
             {n.termin && <><dt>Termin</dt><dd>{fCas(n.termin)}</dd></>}
             <dt>Prijavil</dt>
@@ -211,7 +249,7 @@ export function NalogaPodrobno({ id, onClose }) {
             <dt>Ustvaril</dt><dd>{ust?.ime || '–'}<br /><small>{fCas(n.created_at)}</small></dd>
           </dl>
           {lahkoUreja && <button className="gumb polna" onClick={() => setUredi(true)}><Pencil size={15} /> Uredi nalog</button>}
-          <button className="gumb polna" onClick={() => natisniNalog(n, { obj, nap, dod, ust, profili })}><Printer size={15} /> Natisni / PDF</button>
+          <button className="gumb polna" onClick={() => natisniNalog(n, { obj, nap, dod, dodVsi, ust, profili })}><Printer size={15} /> Natisni / PDF</button>
           {me.vloga === 'vodja' && <button className="gumb polna nevarno" onClick={izbrisi}>Izbriši</button>}
         </aside>
       </div>
@@ -286,7 +324,8 @@ export function Datoteke({ nalogaId, objektId, naslov = 'Datoteke in fotografije
 
   const naloziDatoteke = async (files) => {
     setNalagam(true);
-    for (const file of files) {
+    for (const izvorna of files) {
+      const file = await stisniSliko(izvorna);
       const mapa = file.type.startsWith('image/') ? 'Fotografije s terena' : 'Zapisniki in poročila';
       const pot = `${varnoIme(mapa)}/${objektId || 'splosno'}/${Date.now()}_${varnoIme(file.name)}`;
       const up = await sb.storage.from('dokumenti').upload(pot, file, { contentType: file.type });
@@ -351,26 +390,30 @@ function Galerija({ slike, urls, i, setI }) {
 
 /* ---------- Hiter vnos med telefonskim klicem ---------- */
 export function HitriVnos({ onClose, onVec, onSaved }) {
-  const { objekti, profili, toast, osvezi } = useData();
-  const [f, setF] = useState({ objekt_id: '', naslov: '', prijavitelj: '', prijavitelj_kontakt: '', nujno: false, dodeljeno_id: '' });
+  const { objekti, profili, me, toast, osvezi } = useData();
+  const [f, setF] = useState({ objekt_id: '', lokacija: '', naslov: '', prijavitelj: '', prijavitelj_kontakt: '', nujno: false, izvajalci: [], za_racun: true });
+  const [fotke, setFotke] = useState([]);
   const [shranjujem, setShranjujem] = useState(false);
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
+  const drugo = f.objekt_id === 'drugo';
   const zapis = () => ({
-    naslov: f.naslov.trim(), objekt_id: f.objekt_id || null, prijavitelj: f.prijavitelj || null, prijavitelj_kontakt: f.prijavitelj_kontakt || null,
-    prioriteta: f.nujno ? 'nujno' : 'normalna', dodeljeno_id: f.dodeljeno_id || null, vir: 'telefon',
-    status: f.dodeljeno_id ? 'dodeljena' : 'odprta', rok: f.nujno ? isoDan(new Date()) : null,
+    naslov: f.naslov.trim(), objekt_id: drugo ? null : f.objekt_id || null, lokacija: drugo ? f.lokacija.trim() || null : null,
+    prijavitelj: f.prijavitelj || null, prijavitelj_kontakt: f.prijavitelj_kontakt || null,
+    prioriteta: f.nujno ? 'nujno' : 'normalna', dodeljeno_id: f.izvajalci[0] || null, sodelavci: f.izvajalci.slice(1), vir: 'telefon',
+    status: f.izvajalci.length ? 'dodeljena' : 'odprta', rok: f.nujno ? isoDan(new Date()) : null, za_racun: f.za_racun,
   });
   const shrani = async (e) => {
     e.preventDefault();
     if (!f.naslov.trim()) return;
+    if (drugo && !f.lokacija.trim()) return toast('Vpiši naslov / stranko za »Drugo«.', true);
     setShranjujem(true);
     const { data, error } = await sb.from('naloge').insert(zapis()).select().single();
+    if (error) { setShranjujem(false); return toast('Napaka: ' + error.message, true); }
+    if (fotke.length) { try { await naloziFotografije(data, fotke, me.id); } catch (err) { toast('Nalog je shranjen, fotografije pa ne: ' + err.message, true); } }
     setShranjujem(false);
-    if (error) return toast('Napaka: ' + error.message, true);
     toast(`Nalog #${data.id} vnesen`);
     osvezi(); onClose();
   };
-  const teren = profili.filter((p) => p.vloga === 'teren');
   return (
     <Modal naslov="Hiter vnos klica" onClose={onClose}>
       <form onSubmit={shrani} className="obrazec ena hitri">
@@ -381,8 +424,10 @@ export function HitriVnos({ onClose, onVec, onSaved }) {
           <select value={f.objekt_id} onChange={set('objekt_id')}>
             <option value="">— izberi objekt —</option>
             {objekti.map((o) => <option key={o.id} value={o.id}>{o.naziv} – {o.naslov}</option>)}
+            <option value="drugo">➕ Drugo / nova stranka …</option>
           </select>
         </Polje>
+        {drugo && <Polje label="Naslov in stranka *"><input value={f.lokacija} onChange={set('lokacija')} placeholder="npr. Novak, Cesta 5, Brežice" /></Polje>}
         <div className="dva">
           <Polje label="Kdo kliče"><input value={f.prijavitelj} onChange={set('prijavitelj')} placeholder="Ime / stanovanje" /></Polje>
           <Polje label="Telefon"><input type="tel" value={f.prijavitelj_kontakt} onChange={set('prijavitelj_kontakt')} placeholder="041 …" /></Polje>
@@ -391,15 +436,11 @@ export function HitriVnos({ onClose, onVec, onSaved }) {
           <AlertTriangle size={18} /> {f.nujno ? 'NUJNO – rok danes' : 'Označi kot nujno'}
         </button>
         <div className="polje">
-          <span>Pošlji delavcu (neobvezno)</span>
-          <div className="delavci-izbira">
-            {teren.map((p) => (
-              <button type="button" key={p.id} className={f.dodeljeno_id === p.id ? 'on' : ''} onClick={() => setF({ ...f, dodeljeno_id: f.dodeljeno_id === p.id ? '' : p.id })}>
-                <Avatar p={p} size={26} /> {p.ime.split(' ')[0]}
-              </button>
-            ))}
-          </div>
+          <span>Pošlji delavcem (neobvezno, lahko več)</span>
+          <DelavciIzbira profili={profili} izbrani={f.izvajalci} onChange={(x) => setF({ ...f, izvajalci: x })} samoTeren />
         </div>
+        <div className="polje"><span>Način</span><NacinIzbira zaRacun={f.za_racun} onChange={(v) => setF({ ...f, za_racun: v })} /></div>
+        <div className="polje"><span>Fotografija</span><FotoIzbira datoteke={fotke} setDatoteke={setFotke} /></div>
         <div className="gumbi med">
           <button type="button" className="gumb brez-roba-g" onClick={() => onVec({ ...zapis(), naslov: f.naslov })}>Več podrobnosti</button>
           <button className="gumb primarni" disabled={shranjujem}>{shranjujem ? 'Shranjujem …' : <><Check size={16} /> Shrani nalog</>}</button>
@@ -450,7 +491,7 @@ export function ObracunFaze({ n }) {
 
 /* ---------- Tiskanje delovnega naloga po vzoru papirnatega obrazca ---------- */
 const esc = (x) => String(x ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-export async function natisniNalog(n, { obj, nap, dod, ust, profili = [] }) {
+export async function natisniNalog(n, { obj, nap, dod, dodVsi = [], ust, profili = [] }) {
   const w = window.open('', '_blank');
   if (!w) return alert('Brskalnik je blokiral novo okno. Dovoli pojavna okna za to stran.');
   w.document.write('<p style="font:14px Arial;padding:20px">Pripravljam delovni nalog …</p>');
@@ -461,7 +502,7 @@ export async function natisniNalog(n, { obj, nap, dod, ust, profili = [] }) {
   const delo = d.data || [], mat = m.data || [];
   let podpis = '';
   if (n.podpis_pot) { const { data } = await sb.storage.from('dokumenti').createSignedUrl(n.podpis_pot, 600); podpis = data?.signedUrl || ''; }
-  const s = izracun(delo, mat, n.ddv);
+  const s = izracun(delo, mat, n.ddv_delez_95);
   // logo vgradimo neposredno v dokument, da je zagotovo na izpisu
   let logo = new URL('ikone/logo-polni.png', location.href).href;
   try {
@@ -503,9 +544,10 @@ export async function natisniNalog(n, { obj, nap, dod, ust, profili = [] }) {
 <table class="sekcija">
   <tr><td class="lbl">Naročnik</td><td colspan="5">${esc(n.narocnik)}</td><td class="lbl">ID št.</td><td>${esc(n.narocnik_id_st)}</td></tr>
   <tr><td class="lbl">Naročeno dne</td><td>${fDatum(n.created_at)}</td><td class="lbl">Začeto dne</td><td>${n.zacetek_at ? fDatum(n.zacetek_at) : ''}</td><td class="lbl">Končano dne</td><td>${n.opravljeno_at ? fDatum(n.opravljeno_at) : ''}</td><td class="lbl">SM</td><td>${esc(n.sm)}</td></tr>
-  <tr><td class="lbl">Objekt / stan. / posl. pr.</td><td colspan="5">${obj ? esc(obj.naziv + ', ' + obj.naslov + ', ' + obj.kraj) : ''}${nap ? '<br><span class="mali">' + esc(nap.tip + ' ' + (nap.proizvajalec || '') + ' ' + (nap.model || '')) + '</span>' : ''}</td><td class="lbl">DDV</td><td>${String(n.ddv).replace('.', ',')} %</td></tr>
+  <tr><td class="lbl">Datum izpolnitve</td><td>${n.datum_izpolnitve ? fDatum(n.datum_izpolnitve) : ''}</td><td class="lbl">Način</td><td colspan="3">${n.za_racun ? 'Zaračuna se' : 'Delo po pogodbi'}</td><td class="lbl">E-pošta</td><td>${esc(n.email_stranke)}</td></tr>
+  <tr><td class="lbl">Objekt / stan. / posl. pr.</td><td colspan="5">${obj ? esc(obj.naziv + ', ' + obj.naslov + ', ' + obj.kraj) : esc(n.lokacija)}${nap ? '<br><span class="mali">' + esc(nap.tip + ' ' + (nap.proizvajalec || '') + ' ' + (nap.model || '')) + '</span>' : ''}</td><td class="lbl">DDV</td><td>${s.delez95 >= 100 ? '9,5 %' : s.delez95 <= 0 ? '22 %' : String(s.delez95).replace('.', ',') + ' % po 9,5 %'}</td></tr>
   <tr><td class="lbl">Prijavil</td><td colspan="3">${esc([n.prijavitelj, n.prijavitelj_kontakt].filter(Boolean).join(', '))}</td><td class="lbl">Kontakt. oseba</td><td colspan="3">${esc(n.kontaktna_oseba)}</td></tr>
-  <tr><td class="lbl">Izvajalec</td><td colspan="7">${esc([...new Set([dod?.ime, ...delo.map((x) => ime(x.izvajalec_id))].filter(Boolean))].join(', '))}</td></tr>
+  <tr><td class="lbl">Izvajalec</td><td colspan="7">${esc([...new Set([...dodVsi.map((p) => p.ime), ...delo.map((x) => ime(x.izvajalec_id))].filter(Boolean))].join(', '))}</td></tr>
 </table>
 <table class="sekcija"><caption>OPIS NAROČILA / IZVEDBE DEL</caption><tr><td class="opis"><b>${esc(n.naslov)}</b>${n.opis ? '\n' + esc(n.opis) : ''}${n.porocilo ? '\n\nIzvedeno: ' + esc(n.porocilo) : ''}</td></tr></table>
 <table class="sekcija"><caption>I. SPECIFIKACIJA DELA</caption>
@@ -526,7 +568,7 @@ export async function natisniNalog(n, { obj, nap, dod, ust, profili = [] }) {
 </table>
 <table class="sekcija"><caption>PRIMOPREDAJA DEL</caption>
   <tr><th>Izvajalec (ime in priimek / podpis / žig)</th><th>Naročnik – prevzemnik (ime in priimek / podpis / žig)</th><th>Datum</th></tr>
-  <tr><td class="podpis">${esc(dod?.ime || '')}</td><td class="podpis">${podpis ? `<img src="${podpis}" alt="podpis"><br>` : ''}${esc(n.podpis_ime || '')}${n.podpis_status === 'ni_prisoten' ? '<span class="mali">Stranka ni bila prisotna</span>' : ''}</td><td>${n.podpis_at ? fCas(n.podpis_at) : n.opravljeno_at ? fDatum(n.opravljeno_at) : ''}</td></tr>
+  <tr><td class="podpis">${esc(dodVsi.map((p) => p.ime).join(', '))}</td><td class="podpis">${podpis ? `<img src="${podpis}" alt="podpis"><br>` : ''}${esc(n.podpis_ime || '')}${n.podpis_status === 'ni_prisoten' ? '<span class="mali">Stranka ni bila prisotna</span>' : ''}</td><td>${n.podpis_at ? fCas(n.podpis_at) : n.opravljeno_at ? fDatum(n.opravljeno_at) : ''}</td></tr>
 </table>
 <table class="sekcija"><caption>OBRAČUN DEL</caption>
   <tr><th>Obračun sestavil (ime in priimek / podpis)</th><th>Datum</th><th>Številka računa</th></tr>

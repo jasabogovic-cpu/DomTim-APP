@@ -1,9 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   sb, STATUSI, AKTIVNI, PRIORITETE, KATEGORIJE, MAPE, MAPA_IKONA, KAT_IKONA,
-  fDatum, fDatumKratko, fUra, fRelativno, fVelikost, fMinute, isoDan, danes, zamuja, rokDanes, dniDo, sortNaloge, varnoIme, mapsUrl,
+  fDatum, fDatumKratko, fUra, fRelativno, fVelikost, fMinute, isoDan, danes, zamuja, rokDanes, dniDo, sortNaloge, varnoIme, mapsUrl, dodeljeni, jeDodeljen, krajNaloga, stisniSliko,
 } from './lib.js';
-import { useData, Status, Prio, Kat, Avatar, Prazno, Kartica, Modal, Polje, KatIk, MapaIk } from './ui.jsx';
+import { useData, Status, Prio, Kat, Avatar, Avatarji, Prazno, Kartica, Modal, Polje, KatIk, MapaIk } from './ui.jsx';
 import { CalendarDays, Clock, AlertTriangle, HardHat, Flame, History, List, Columns3, Search, Euro, Check, MapPin, Phone, Mail, User, Hand, Play, Coffee, ChevronLeft, ChevronRight, Building2, Home, Building, Inbox, Pencil, Archive, Image as ImageIk, FileText, Trash2, FolderOpen, ArrowRight, Plus, Upload, Sun, PhoneCall, Download } from 'lucide-react';
 import { Datoteke, odpriDatoteko } from './naloga.jsx';
 import { izracun, fEur, CenikUrejevalnik } from './delovni.jsx';
@@ -12,13 +12,13 @@ import { izracun, fEur, CenikUrejevalnik } from './delovni.jsx';
 export function NalogaVrstica({ n, kompaktno }) {
   const { profili, objekti, odpriNalogo } = useData();
   const obj = objekti.find((o) => o.id === n.objekt_id);
-  const dod = profili.find((p) => p.id === n.dodeljeno_id);
+  const dod = dodeljeni(n).map((id) => profili.find((p) => p.id === id)).filter(Boolean);
   return (
     <div className={'naloga-vrstica' + (zamuja(n) ? ' zamuja' : '') + ' p-' + n.prioriteta} onClick={() => odpriNalogo(n.id)}>
       <div className="nv-glavno">
         <div className="nv-naslov"><span className="st-naloga">#{n.id}</span> {n.naslov}</div>
         <div className="nv-meta">
-          <span><KatIk k={n.kategorija} s={13} /> {obj ? obj.naziv : 'Splošno'}</span>
+          <span><KatIk k={n.kategorija} s={13} /> {obj ? obj.naziv : n.lokacija || 'Splošno'}</span>
           {n.rok && <span className={zamuja(n) ? 'rdece' : rokDanes(n) ? 'oranzno' : ''}><CalendarDays size={13} className="ik" /> {zamuja(n) ? 'zamuja · ' : rokDanes(n) ? 'danes · ' : ''}{fDatumKratko(n.rok)}</span>}
           {n.termin && <span><Clock size={13} className="ik" /> {fDatumKratko(n.termin)} {fUra(n.termin)}</span>}
         </div>
@@ -26,7 +26,7 @@ export function NalogaVrstica({ n, kompaktno }) {
       <div className="nv-desno">
         <Prio p={n.prioriteta} kratko />
         {!kompaktno && <Status s={n.status} />}
-        <Avatar p={dod} size={26} />
+        <Avatarji ljudje={dod} size={26} />
       </div>
     </div>
   );
@@ -73,7 +73,7 @@ export function Pregled() {
         <Kartica naslov={<><HardHat size={16} className="ik" /> Obremenitev terenske ekipe</>} desno={<a onClick={() => pojdi('plan')}>Tedenski plan <ArrowRight size={13} className="ik" /></a>}>
           <div className="ekipa-obremenitev">
             {teren.map((p) => {
-              const moje = aktivne.filter((n) => n.dodeljeno_id === p.id);
+              const moje = aktivne.filter((n) => jeDodeljen(n, p.id));
               const vTeku = moje.find((n) => n.status === 'v_teku');
               const obj = vTeku && objekti.find((o) => o.id === vTeku.objekt_id);
               return (
@@ -134,13 +134,13 @@ export function Naloge({ filterZacetni = {} }) {
       }
       if (f.kategorija && n.kategorija !== f.kategorija) return false;
       if (f.prioriteta && n.prioriteta !== f.prioriteta) return false;
-      if (f.dodeljeno === 'nihce' ? n.dodeljeno_id : f.dodeljeno && n.dodeljeno_id !== f.dodeljeno) return false;
+      if (f.dodeljeno === 'nihce' ? n.dodeljeno_id : f.dodeljeno && !jeDodeljen(n, f.dodeljeno)) return false;
       if (f.objekt && String(n.objekt_id) !== String(f.objekt)) return false;
       if (f.zamuja && !zamuja(n)) return false;
       if (f.za_racun && !n.za_racun) return false;
       if (q) {
         const o = objekti.find((x) => x.id === n.objekt_id);
-        const hay = `${n.id} ${n.naslov} ${n.opis || ''} ${n.prijavitelj || ''} ${o?.naziv || ''} ${o?.naslov || ''}`.toLowerCase();
+        const hay = `${n.id} ${n.naslov} ${n.opis || ''} ${n.prijavitelj || ''} ${o?.naziv || ''} ${o?.naslov || ''} ${n.lokacija || ''}`.toLowerCase();
         if (!hay.includes(q)) return false;
       }
       return true;
@@ -197,16 +197,16 @@ export function Naloge({ filterZacetni = {} }) {
               <thead><tr><th>Št.</th><th>Naloga</th><th>Objekt</th><th>Status</th><th>Prioriteta</th><th>Rok</th><th>Dodeljeno</th></tr></thead>
               <tbody>
                 {filtrirane.map((n) => {
-                  const o = objekti.find((x) => x.id === n.objekt_id); const p = profili.find((x) => x.id === n.dodeljeno_id);
+                  const o = objekti.find((x) => x.id === n.objekt_id); const dod = dodeljeni(n).map((id) => profili.find((x) => x.id === id)).filter(Boolean);
                   return (
                     <tr key={n.id} onClick={() => odpriNalogo(n.id)} className={zamuja(n) ? 'zamuja' : ''}>
                       <td className="st-naloga">#{n.id}</td>
                       <td><b>{n.naslov}</b><div className="pod"><KatIk k={n.kategorija} s={12} /> {n.kategorija}{n.za_racun && <> · <Euro size={12} className="ik" /></>}</div></td>
-                      <td>{o?.naziv || <span className="sivo">–</span>}</td>
+                      <td>{o?.naziv || n.lokacija || <span className="sivo">–</span>}</td>
                       <td><Status s={n.status} /></td>
                       <td><Prio p={n.prioriteta} /></td>
                       <td className={zamuja(n) ? 'rdece' : ''}>{n.status === 'opravljena' ? <span className="sivo"><Check size={13} className="ik" /> {fDatumKratko(n.opravljeno_at)}</span> : fDatum(n.rok)}</td>
-                      <td>{p ? <span className="oseba"><Avatar p={p} size={22} /> {p.ime.split(' ')[0]}</span> : <span className="sivo">–</span>}</td>
+                      <td>{dod.length ? <span className="oseba"><Avatarji ljudje={dod} size={22} /> {dod.map((x) => x.ime.split(' ')[0]).join(', ')}</span> : <span className="sivo">–</span>}</td>
                     </tr>
                   );
                 })}
@@ -258,7 +258,7 @@ function Tabla({ naloge }) {
 export function Moje() {
   const { naloge, objekti, me, odpriNalogo, novaNaloga, toast } = useData();
   const [zavihek, setZavihek] = useState('danes');
-  const moje = naloge.filter((n) => n.dodeljeno_id === me.id);
+  const moje = naloge.filter((n) => jeDodeljen(n, me.id));
   const aktivne = moje.filter((n) => AKTIVNI.includes(n.status)).sort(sortNaloge);
   const danesIso = isoDan(new Date());
   const zaDanes = aktivne.filter((n) => n.status === 'v_teku' || zamuja(n) || n.prioriteta === 'nujno' || (n.rok && n.rok <= danesIso) || (n.termin && isoDan(n.termin) === danesIso));
@@ -303,7 +303,7 @@ export function Moje() {
             <div key={n.id} className={'teren-kartica p-' + n.prioriteta + (zamuja(n) ? ' zamuja' : '')} onClick={() => odpriNalogo(n.id)}>
               <div className="tk-vrh"><Status s={n.status} /><Prio p={n.prioriteta} kratko />{zamuja(n) && <span className="prio prio-nujno">Zamuja</span>}<span className="st-naloga">#{n.id}</span></div>
               <h3><KatIk k={n.kategorija} s={17} /> {n.naslov}</h3>
-              {o && <div className="tk-naslov"><MapPin size={14} className="ik" /> {o.naslov}, {o.kraj}</div>}
+              {o ? <div className="tk-naslov"><MapPin size={14} className="ik" /> {o.naslov}, {o.kraj}</div> : n.lokacija && <div className="tk-naslov"><MapPin size={14} className="ik" /> {n.lokacija}</div>}
               {n.opis && <p className="tk-opis">{n.opis}</p>}
               <div className="tk-meta">
                 {n.termin && <span><Clock size={13} className="ik" /> {fDatumKratko(n.termin)} ob {fUra(n.termin)}</span>}
@@ -360,7 +360,7 @@ export function Plan() {
                 <th><span className="oseba"><Avatar p={p} size={26} /> <span><b>{p.ime}</b><small>{p.delovno_mesto}</small></span></span></th>
                 {dnevi.map((d) => {
                   const iso = isoDan(d);
-                  const v = relevantne.filter((n) => n.dodeljeno_id === p.id && (dan(n) === iso || (iso === danIso && zamuja(n) && !n.termin))).sort(sortNaloge);
+                  const v = relevantne.filter((n) => jeDodeljen(n, p.id) && (dan(n) === iso || (iso === danIso && zamuja(n) && !n.termin))).sort(sortNaloge);
                   return (
                     <td key={iso} className={iso === danIso ? 'danes' : ''}>
                       {v.map((n) => {
@@ -368,7 +368,7 @@ export function Plan() {
                         return (
                           <div key={n.id} className={'plan-naloga s-' + n.status + ' p-' + n.prioriteta + (zamuja(n) ? ' zamuja' : '')} onClick={() => odpriNalogo(n.id)} title={n.naslov}>
                             {n.termin && <b>{fUra(n.termin)} </b>}{n.naslov}
-                            {o && <small>{o.naziv}</small>}
+                            {(o || n.lokacija) && <small>{o ? o.naziv : n.lokacija}</small>}
                           </div>
                         );
                       })}
@@ -627,7 +627,8 @@ export function Dokumenti() {
   const upload = async (files) => {
     setNalagam(true);
     const m = mapa || ciljnaMapa;
-    for (const file of files) {
+    for (const izvorna of files) {
+      const file = await stisniSliko(izvorna);
       const pot = `${varnoIme(m)}/${objekt || 'splosno'}/${Date.now()}_${varnoIme(file.name)}`;
       const up = await sb.storage.from('dokumenti').upload(pot, file, { contentType: file.type });
       if (up.error) { toast('Napaka: ' + up.error.message, true); continue; }
@@ -700,8 +701,8 @@ export function Ekipa() {
       <div className="stran-glava"><div><h1>Ekipa</h1><p className="podnaslov">{profili.length} zaposlenih</p></div></div>
       <div className="ekipa-mreza">
         {profili.map((p) => {
-          const akt = naloge.filter((n) => n.dodeljeno_id === p.id && AKTIVNI.includes(n.status)).length;
-          const opr = naloge.filter((n) => n.dodeljeno_id === p.id && n.status === 'opravljena' && new Date(n.opravljeno_at) >= mesecZac);
+          const akt = naloge.filter((n) => jeDodeljen(n, p.id) && AKTIVNI.includes(n.status)).length;
+          const opr = naloge.filter((n) => jeDodeljen(n, p.id) && n.status === 'opravljena' && new Date(n.opravljeno_at) >= mesecZac);
           const min = opr.reduce((s, n) => s + (n.porabljen_cas_min || 0), 0);
           return (
             <div key={p.id} className="oseba-kartica" onClick={() => pojdi('naloge', { dodeljeno: p.id })}>
@@ -732,7 +733,7 @@ export function Obracun() {
     Promise.all([sb.from('naloga_delo').select('*').in('naloga_id', seznam), sb.from('naloga_material').select('*').in('naloga_id', seznam)])
       .then(([d, m]) => setPostavke({ delo: d.data || [], material: m.data || [] }));
   }, [ids, verzija]);
-  const vsota = (n) => izracun(postavke.delo.filter((d) => d.naloga_id === n.id), postavke.material.filter((m) => m.naloga_id === n.id), n.ddv);
+  const vsota = (n) => izracun(postavke.delo.filter((d) => d.naloga_id === n.id), postavke.material.filter((m) => m.naloga_id === n.id), n.ddv_delez_95);
 
   const faze = {
     pregled: zaRacun.filter((n) => !n.pregledano_at && !n.obracunano_at).sort((a, b) => (a.opravljeno_at || '').localeCompare(b.opravljeno_at || '')),
@@ -756,7 +757,7 @@ export function Obracun() {
     const glava = ['Št. naloga', 'Naslov', 'Naročnik', 'ID št.', 'SM', 'Objekt', 'Izvajalec', 'Končano', 'Ure', 'Delo (brez DDV)', 'Material (brez DDV)', 'Osnova 9,5 %', 'DDV 9,5 %', 'Osnova 22 %', 'DDV 22 %', 'Skupaj z DDV', 'Pregledal', 'Št. računa'];
     const vrstice = seznam.map((n) => {
       const v = vsota(n); const o = objekti.find((x) => x.id === n.objekt_id);
-      return [n.id, q(n.naslov), q(n.narocnik), q(n.narocnik_id_st), q(n.sm), q(o?.naziv), q(profili.find((p) => p.id === n.dodeljeno_id)?.ime), fDatum(n.opravljeno_at), f(v.ure), f(v.delo), f(v.material), f(v.osnove[9.5]), f(v.ddv[9.5]), f(v.osnove[22]), f(v.ddv[22]), f(v.skupaj), q(profili.find((p) => p.id === n.pregledal_id)?.ime), q(n.stevilka_racuna)].join(';');
+      return [n.id, q(n.naslov), q(n.narocnik), q(n.narocnik_id_st), q(n.sm), q(o?.naziv || n.lokacija), q(dodeljeni(n).map((id) => profili.find((p) => p.id === id)?.ime).filter(Boolean).join(', ')), fDatum(n.opravljeno_at), f(v.ure), f(v.delo), f(v.material), f(v.osnove[9.5]), f(v.ddv[9.5]), f(v.osnove[22]), f(v.ddv[22]), f(v.skupaj), q(profili.find((p) => p.id === n.pregledal_id)?.ime), q(n.stevilka_racuna)].join(';');
     });
     const blob = new Blob(['﻿' + [glava.join(';'), ...vrstice].join('\r\n')], { type: 'text/csv;charset=utf-8' });
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
@@ -794,13 +795,13 @@ export function Obracun() {
               </tr></thead>
               <tbody>
                 {seznam.map((n) => {
-                  const o = objekti.find((x) => x.id === n.objekt_id); const p = profili.find((x) => x.id === n.dodeljeno_id); const v = vsota(n);
+                  const o = objekti.find((x) => x.id === n.objekt_id); const dod = dodeljeni(n).map((id) => profili.find((x) => x.id === id)).filter(Boolean); const v = vsota(n);
                   return (
                     <tr key={n.id} onClick={() => odpriNalogo(n.id)}>
                       {zIzbira && <td className="izbira" onClick={(e) => e.stopPropagation()}><input type="checkbox" checked={izbrani.includes(n.id)} onChange={() => preklopi(n.id)} /></td>}
                       <td><span className="st-naloga">#{n.id}</span> <b>{n.naslov}</b><div className="pod porocilo-kratko">{n.porocilo || <em>brez opisa</em>}</div></td>
-                      <td>{n.narocnik || <span className="sivo">–</span>}<div className="pod">{o?.naziv}{n.sm ? ' · ' + n.sm : ''}</div></td>
-                      <td>{p ? <span className="oseba"><Avatar p={p} size={22} /> {p.ime.split(' ')[0]}</span> : '–'}</td>
+                      <td>{n.narocnik || <span className="sivo">–</span>}<div className="pod">{o?.naziv || n.lokacija}{n.sm ? ' · ' + n.sm : ''}</div></td>
+                      <td>{dod.length ? <span className="oseba"><Avatarji ljudje={dod} size={22} /> {dod.map((x) => x.ime.split(' ')[0]).join(', ')}</span> : '–'}</td>
                       <td>{fDatum(n.opravljeno_at)}{zavihek === 'zaracunano' && <div className="pod">{n.stevilka_racuna ? 'račun ' + n.stevilka_racuna : fDatum(n.obracunano_at)}</div>}</td>
                       <td>{v.ure ? v.ure + ' h' : '–'}</td>
                       <td className="d"><b>{fEur(v.skupaj)}</b>{v.manjkaCena && <div className="pod rdece">manjka cena</div>}</td>

@@ -1,12 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { sb, AKTIVNI } from './lib.js';
+import { sb, AKTIVNI, jeDodeljen } from './lib.js';
 import { DataCtx, Avatar } from './ui.jsx';
 import { NalogaObrazec, NalogaPodrobno, HitriVnos } from './naloga.jsx';
-import { LayoutDashboard, ListChecks, ClipboardList, CalendarDays, Building2, Flame, FolderOpen, Users, LogOut, Menu, Plus, X, PhoneCall, Receipt } from 'lucide-react';
+import { LayoutDashboard, ListChecks, ClipboardList, CalendarDays, Building2, Flame, FolderOpen, Users, LogOut, Menu, Plus, X, PhoneCall, Receipt, Clock } from 'lucide-react';
 
 const Logo = ({ visina = 34 }) => <img src="ikone/logo.png" alt="DOMtim" className="logo-slika" style={{ height: visina }} />;
 import { Pregled, Naloge, Moje, Plan, Objekti, Naprave, Dokumenti, Ekipa, Obracun } from './views.jsx';
+import { Evidenca } from './evidenca.jsx';
 import { useObvestila, ObvestilaPasica, ObvestilaStikalo, odjaviNarocnino, testnoObvestilo } from './push.jsx';
 
 // --- Namestitev na telefon (PWA) ---
@@ -178,7 +179,7 @@ function Aplikacija({ session }) {
 
   const teren = me.vloga === 'teren';
   const stran = pot.stran || (teren ? 'moje' : 'pregled');
-  const mojih = podatki.naloge.filter((n) => n.dodeljeno_id === me.id && AKTIVNI.includes(n.status)).length;
+  const mojih = podatki.naloge.filter((n) => jeDodeljen(n, me.id) && AKTIVNI.includes(n.status)).length;
   const nujnih = podatki.naloge.filter((n) => n.prioriteta === 'nujno' && AKTIVNI.includes(n.status)).length;
   const zaObracun = podatki.naloge.filter((n) => n.status === 'opravljena' && n.za_racun && !n.pregledano_at && !n.obracunano_at).length;
 
@@ -187,17 +188,18 @@ function Aplikacija({ session }) {
     ['moje', ListChecks, 'Moje naloge', mojih],
     ['naloge', ClipboardList, 'Vsi nalogi', nujnih, true],
     ['plan', CalendarDays, 'Tedenski plan'],
+    ['evidenca', Clock, 'Evidenca ur'],
     ['objekti', Building2, 'Objekti'],
     ['naprave', Flame, 'Naprave in pregledi'],
     ...(!teren ? [['obracun', Receipt, 'Obračun', zaObracun, me.prejema_obracun]] : []),
     ['dokumenti', FolderOpen, 'Dokumenti'],
     ['ekipa', Users, 'Ekipa'],
   ];
-  const MOBILNO = teren ? ['moje', 'naloge', 'objekti', 'dokumenti'] : me.prejema_obracun ? ['pregled', 'naloge', 'obracun', 'objekti'] : ['pregled', 'naloge', 'plan', 'objekti'];
+  const MOBILNO = teren ? ['moje', 'evidenca', 'naloge', 'objekti'] : me.prejema_obracun ? ['pregled', 'naloge', 'obracun', 'objekti'] : ['pregled', 'naloge', 'plan', 'objekti'];
 
   const vsebina = {
     pregled: <Pregled />, naloge: <Naloge filterZacetni={pot.filter} />, moje: <Moje />, plan: <Plan />,
-    objekti: <Objekti izbran={pot.id} />, naprave: <Naprave />, dokumenti: <Dokumenti />, ekipa: <Ekipa />, obracun: <Obracun />,
+    objekti: <Objekti izbran={pot.id} />, naprave: <Naprave />, dokumenti: <Dokumenti />, ekipa: <Ekipa />, obracun: <Obracun />, evidenca: <Evidenca />,
   }[stran] || <Pregled />;
 
   return (

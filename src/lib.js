@@ -75,3 +75,25 @@ export const sortNaloge = (a, b) => {
 export const varnoIme = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-zA-Z0-9._-]+/g, '_');
 export const zacetnice = (ime = '') => ime.split(' ').map((x) => x[0]).slice(0, 2).join('').toUpperCase();
 export const mapsUrl = (o) => o ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(o.naslov + ', ' + o.kraj)}` : null;
+
+/* ---------- več delavcev na nalogu ---------- */
+export const dodeljeni = (n) => [n.dodeljeno_id, ...(n.sodelavci || [])].filter(Boolean);
+export const jeDodeljen = (n, id) => dodeljeni(n).includes(id);
+export const krajNaloga = (n, objekti) => objekti.find((o) => o.id === n.objekt_id)?.naziv || n.lokacija || null;
+
+/* ---------- zmanjšanje fotografij pred nalaganjem ---------- */
+export async function stisniSliko(file, najvec = 1600, kakovost = 0.78) {
+  if (!file.type.startsWith('image/') || file.type === 'image/gif' || file.type === 'image/svg+xml') return file;
+  try {
+    const url = URL.createObjectURL(file);
+    const img = await new Promise((ok, napaka) => { const i = new Image(); i.onload = () => ok(i); i.onerror = napaka; i.src = url; });
+    const f = Math.min(1, najvec / Math.max(img.naturalWidth, img.naturalHeight));
+    const c = document.createElement('canvas');
+    c.width = Math.round(img.naturalWidth * f); c.height = Math.round(img.naturalHeight * f);
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    URL.revokeObjectURL(url);
+    const blob = await new Promise((r) => c.toBlob(r, 'image/jpeg', kakovost));
+    if (!blob || blob.size >= file.size) return file;
+    return new File([blob], file.name.replace(/\.[^.]+$/, '') + '.jpg', { type: 'image/jpeg' });
+  } catch { return file; }
+}

@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Plus, Trash2, Check, Eraser, PenLine, UserX, Clock, Package, HardHat } from 'lucide-react';
-import { sb, isoDan, fDatum, fCas, fMinute } from './lib.js';
-import { useData, Modal, Polje, Avatar } from './ui.jsx';
+import { sb, isoDan, fDatum, fCas, fMinute, dodeljeni, jeDodeljen } from './lib.js';
+import { useData, Modal, Polje, Avatar, NacinIzbira } from './ui.jsx';
 
 /* ---------- pomožno ---------- */
 export const fEur = (x) => (x == null || isNaN(x) ? '–' : Number(x).toLocaleString('sl-SI', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €');
@@ -15,24 +15,20 @@ export const ureMed = (od, d) => {
 };
 export const DDV_STOPNJE = [22, 9.5, 0];
 
-/** Seštevki po obrazcu: delo, material, osnove in DDV po stopnjah, skupaj. */
-export function izracun(delo, material, privzetDdv = 22) {
-  const vr = (x) => (x == null || isNaN(x) ? 0 : x);
-  let sDelo = 0, sMat = 0; const osnove = { 22: 0, 9.5: 0, 0: 0 }; let manjkaCena = false;
-  for (const d of delo) {
-    const v = vr(d.ure) * vr(d.cena); sDelo += v; osnove[d.ddv ?? privzetDdv] += v;
-    if (d.cena == null && d.ure) manjkaCena = true;
-  }
-  for (const m of material) {
-    const v = vr(m.kolicina) * vr(m.cena); sMat += v; osnove[m.ddv ?? privzetDdv] += v;
-    if (m.cena == null) manjkaCena = true;
-  }
-  const ddv = { 22: osnove[22] * 0.22, 9.5: osnove[9.5] * 0.095, 0: 0 };
+/** Seštevki po obrazcu: delo, material, skupna osnova, delitev na 9,5 % in 22 % po deležu, skupaj. */
+export function izracun(delo, material, delez95 = 0) {
+  const vr = (x) => (x == null || isNaN(x) ? 0 : Number(x));
   const r2 = (x) => Math.round(x * 100) / 100;
+  let sDelo = 0, sMat = 0, manjkaCena = false;
+  for (const d of delo) { sDelo += vr(d.ure) * vr(d.cena); if (d.cena == null && d.ure) manjkaCena = true; }
+  for (const m of material) { sMat += vr(m.kolicina) * vr(m.cena); if (m.cena == null) manjkaCena = true; }
+  const osnova = r2(sDelo + sMat);
+  const delez = Math.min(100, Math.max(0, vr(delez95)));
+  const o95 = r2(osnova * delez / 100), o22 = r2(osnova - o95);
+  const d95 = r2(o95 * 0.095), d22 = r2(o22 * 0.22);
   return {
-    delo: r2(sDelo), material: r2(sMat), osnova: r2(sDelo + sMat), ure: delo.reduce((s, d) => s + vr(d.ure), 0),
-    osnove: { 22: r2(osnove[22]), 9.5: r2(osnove[9.5]), 0: r2(osnove[0]) }, ddv: { 22: r2(ddv[22]), 9.5: r2(ddv[9.5]) },
-    skupaj: r2(sDelo + sMat + ddv[22] + ddv[9.5]), manjkaCena,
+    delo: r2(sDelo), material: r2(sMat), osnova, ure: delo.reduce((s, d) => s + vr(d.ure), 0), delez95: delez,
+    osnove: { 22: o22, 9.5: o95, 0: 0 }, ddv: { 22: d22, 9.5: d95 }, skupaj: r2(osnova + d95 + d22), manjkaCena,
   };
 }
 
@@ -108,6 +104,7 @@ export function ZakljuciObrazec({ n, onClose }) {
   const [podpis, setPodpis] = useState(null);
   const [podpisIme, setPodpisIme] = useState(n.prijavitelj || '');
   const [niPrisoten, setNiPrisoten] = useState(false);
+  const [email, setEmail] = useState(n.email_stranke || '');
   const [shranjujem, setShranjujem] = useState(false);
 
   // začetne vrstice: obstoječe postavke ali predlog iz časa dela
@@ -117,7 +114,8 @@ export function ZakljuciObrazec({ n, onClose }) {
     else {
       const zac = n.zacetek_at && isoDan(n.zacetek_at) === isoDan(zdaj) ? ura(new Date(n.zacetek_at)) : '';
       const kon = ura(zdaj);
-      setDelo([{ datum: isoDan(zdaj), izvajalec_id: n.dodeljeno_id || me.id, od: zac, do: kon, ure: zac ? ureMed(zac, kon) : '' }]);
+      const kdo = dodeljeni(n).length ? dodeljeni(n) : [me.id];
+      setDelo(kdo.map((id) => ({ datum: isoDan(zdaj), izvajalec_id: id, od: zac, do: kon, ure: zac ? ureMed(zac, kon) : '' })));
     }
     setMat(post.material.length ? post.material.map((m) => ({ ...m })) : []);
   }, [post.nalozeno]);
@@ -143,10 +141,10 @@ export function ZakljuciObrazec({ n, onClose }) {
       // postavke: zamenjamo vse vrstice tega naloga
       const dVrst = delo.filter((d) => st(d.ure)).map((d) => ({
         naloga_id: n.id, datum: d.datum || isoDan(zdaj), izvajalec_id: d.izvajalec_id || null, od: d.od || null, do: d.do || null,
-        ure: st(d.ure), cena: d.cena ?? privzetaCenaDela(), ddv: d.ddv ?? n.ddv,
+        ure: st(d.ure), cena: d.cena ?? privzetaCenaDela(),
       }));
       const mVrst = mat.filter((m) => m.naziv?.trim()).map((m) => ({
-        naloga_id: n.id, cenik_id: m.cenik_id || null, naziv: m.naziv.trim(), enota: m.enota || 'kos', kolicina: st(m.kolicina) ?? 1, cena: m.cena ?? null, ddv: m.ddv ?? n.ddv,
+        naloga_id: n.id, cenik_id: m.cenik_id || null, naziv: m.naziv.trim(), enota: m.enota || 'kos', kolicina: st(m.kolicina) ?? 1, cena: m.cena ?? null,
       }));
       let r = await sb.from('naloga_delo').delete().eq('naloga_id', n.id); if (r.error) throw r.error;
       r = await sb.from('naloga_material').delete().eq('naloga_id', n.id); if (r.error) throw r.error;
@@ -154,7 +152,7 @@ export function ZakljuciObrazec({ n, onClose }) {
       if (mVrst.length) { r = await sb.from('naloga_material').insert(mVrst); if (r.error) throw r.error; }
 
       const upd = {
-        status: 'opravljena', porocilo, za_racun: zaRacun,
+        status: 'opravljena', porocilo, za_racun: zaRacun, email_stranke: email.trim() || null,
         porabljen_cas_min: Math.round(dVrst.reduce((s, d) => s + d.ure, 0) * 60) || null,
         material: mVrst.map((m) => `${m.kolicina} ${m.enota} ${m.naziv}`).join(', ') || null,
       };
@@ -196,7 +194,8 @@ export function ZakljuciObrazec({ n, onClose }) {
               {delo.length > 1 && <button type="button" className="ikona-gumb" onClick={() => setDelo(delo.filter((_, j) => j !== i))} aria-label="Odstrani"><Trash2 size={16} /></button>}
             </div>
           ))}
-          <button type="button" className="gumb mali" onClick={() => setDelo([...delo, { datum: isoDan(zdaj), izvajalec_id: me.id, od: '', do: '', ure: '' }])}><Plus size={14} /> Dodaj izvajalca / dan</button>
+          <button type="button" className="gumb mali" onClick={() => setDelo([...delo, { datum: isoDan(zdaj), izvajalec_id: me.id, od: '', do: '', ure: '' }])}><Plus size={14} /> Dodaj obisk / čas</button>
+          <p className="namig">Če si moral vmes npr. po material, dodaj novo vrstico za drugi del dela (npr. 8:00–9:00 in 9:30–11:00).</p>
         </section>
 
         <section>
@@ -220,10 +219,11 @@ export function ZakljuciObrazec({ n, onClose }) {
             <PodpisPlatno onSpremeni={setPodpis} />
             <input value={podpisIme} onChange={(e) => setPodpisIme(e.target.value)} placeholder="Ime in priimek stranke" className="mt-s" />
           </>}
+          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="E-pošta stranke (za pošiljanje PDF-ja)" className="mt-s" />
           <label className="potrditev mt-s"><input type="checkbox" checked={niPrisoten} onChange={(e) => { setNiPrisoten(e.target.checked); setPodpis(null); }} /> <UserX size={15} /> Stranka ni prisotna – brez podpisa</label>
         </section>
 
-        <label className="potrditev"><input type="checkbox" checked={zaRacun} onChange={(e) => setZaRacun(e.target.checked)} /> Delo se zaračuna (gre v obračun)</label>
+        <div className="polje"><span>Način</span><NacinIzbira zaRacun={zaRacun} onChange={setZaRacun} /></div>
         <div className="gumbi"><button type="button" className="gumb" onClick={onClose}>Prekliči</button><button className="gumb uspeh" disabled={shranjujem}>{shranjujem ? 'Shranjujem …' : <><Check size={16} /> Zaključi nalog</>}</button></div>
       </form>
     </Modal>
@@ -254,8 +254,16 @@ export function DelovniNalog({ n }) {
   const [glavaUredi, setGlavaUredi] = useState(false);
   const [podpisUrl, setPodpisUrl] = useState(null);
   const zaklenjeno = !!n.pregledano_at && !pisarna;
-  const lahko = pisarna || (!zaklenjeno && (n.dodeljeno_id === me.id || !n.dodeljeno_id));
-  const s = izracun(post.delo, post.material, n.ddv);
+  const lahko = pisarna || (!zaklenjeno && (jeDodeljen(n, me.id) || !n.dodeljeno_id));
+  const s = izracun(post.delo, post.material, n.ddv_delez_95);
+  const [delez, setDelez] = useState(n.ddv_delez_95 ?? 0);
+  useEffect(() => setDelez(n.ddv_delez_95 ?? 0), [n.ddv_delez_95]);
+  const shraniDelez = async (v) => {
+    const x = Math.min(100, Math.max(0, Number(String(v).replace(',', '.')) || 0)); setDelez(x);
+    if (x === Number(n.ddv_delez_95)) return;
+    const { error } = await sb.from('naloge').update({ ddv_delez_95: x }).eq('id', n.id); if (error) toast('Napaka: ' + error.message, true);
+  };
+  const sprejemDelez = izracun(post.delo, post.material, delez);
 
   useEffect(() => {
     if (!n.podpis_pot) return setPodpisUrl(null);
@@ -268,14 +276,14 @@ export function DelovniNalog({ n }) {
   };
   const dodaj = async (tabela) => {
     const z = tabela === 'naloga_delo'
-      ? { naloga_id: n.id, izvajalec_id: n.dodeljeno_id || me.id, ure: 1, cena: cenik.find((c) => c.tip === 'delo' && c.enota === 'ura')?.cena ?? null, ddv: n.ddv }
-      : { naloga_id: n.id, naziv: 'Material', kolicina: 1, ddv: n.ddv };
+      ? { naloga_id: n.id, izvajalec_id: n.dodeljeno_id || me.id, ure: 1, cena: cenik.find((c) => c.tip === 'delo' && c.enota === 'ura')?.cena ?? null }
+      : { naloga_id: n.id, naziv: 'Material', kolicina: 1 };
     const { error } = await sb.from(tabela).insert(z); if (error) toast('Napaka: ' + error.message, true); else nalozi();
   };
   const odstrani = async (tabela, id) => { const { error } = await sb.from(tabela).delete().eq('id', id); if (error) toast('Napaka: ' + error.message, true); else nalozi(); };
   const izberiCenik = async (m, naziv) => {
     const c = cenik.find((c) => c.tip === 'material' && c.naziv === naziv);
-    const z = c ? { naziv, cenik_id: c.id, enota: c.enota, cena: c.cena, ddv: c.ddv } : { naziv, cenik_id: null };
+    const z = c ? { naziv, cenik_id: c.id, enota: c.enota, cena: c.cena } : { naziv, cenik_id: null };
     const { error } = await sb.from('naloga_material').update(z).eq('id', m.id); if (error) toast('Napaka: ' + error.message, true); else nalozi();
   };
 
@@ -289,18 +297,20 @@ export function DelovniNalog({ n }) {
       <dl className="dn-glava">
         <div><dt>Naročnik</dt><dd>{n.narocnik || <span className="sivo">–</span>}</dd></div>
         <div><dt>ID št.</dt><dd>{n.narocnik_id_st || <span className="sivo">–</span>}</dd></div>
-        <div><dt>SM</dt><dd>{n.sm || <span className="sivo">–</span>}</dd></div>
-        <div><dt>DDV</dt><dd>{String(n.ddv).replace('.', ',')} %</dd></div>
+        {pisarna && <div><dt>SM</dt><dd>{n.sm || <span className="sivo">–</span>}</dd></div>}
+        <div><dt>Način</dt><dd>{n.za_racun ? 'Zaračuna se' : 'Delo po pogodbi'}</dd></div>
         <div><dt>Naročeno</dt><dd>{fDatum(n.created_at)}</dd></div>
         <div><dt>Začeto</dt><dd>{fDatum(n.zacetek_at)}</dd></div>
         <div><dt>Končano</dt><dd>{fDatum(n.opravljeno_at)}</dd></div>
+        <div><dt>Izpolnjeno</dt><dd>{fDatum(n.datum_izpolnitve)}</dd></div>
         <div><dt>Kontaktna oseba</dt><dd>{n.kontaktna_oseba || <span className="sivo">–</span>}</dd></div>
+        <div className="dn-sirok"><dt>E-pošta stranke</dt><dd>{n.email_stranke || <span className="sivo">–</span>}</dd></div>
       </dl>
 
       <div className="dn-tabela-ovoj">
         <table className="dn-tabela">
           <caption>I. Specifikacija dela</caption>
-          <thead><tr><th>Datum</th><th>Izvajalec</th><th>Od</th><th>Do</th><th>Ure</th>{pisarna && <><th>Cena/h</th><th>DDV</th><th className="d">Vrednost</th></>}{lahko && <th />}</tr></thead>
+          <thead><tr><th>Datum</th><th>Izvajalec</th><th>Od</th><th>Do</th><th>Ure</th>{pisarna && <><th>Cena/h</th><th className="d">Vrednost</th></>}{lahko && <th />}</tr></thead>
           <tbody>
             {post.delo.map((d) => (
               <tr key={d.id}>
@@ -311,7 +321,6 @@ export function DelovniNalog({ n }) {
                 <td><Celica {...cp} tabela="naloga_delo" v={d} polje="ure" tip="number" sirina={64} /></td>
                 {pisarna && <>
                   <td><Celica {...cp} tabela="naloga_delo" v={d} polje="cena" tip="number" sirina={78} poseben={d.cena == null ? 'manjka' : ''} /></td>
-                  <td><DdvIzbira upd={upd} pisarna={pisarna} privzeto={n.ddv} tabela="naloga_delo" v={d} /></td>
                   <td className="d">{fEur((d.ure || 0) * (d.cena || 0))}</td>
                 </>}
                 {lahko && <td><button className="ikona-gumb" onClick={() => odstrani('naloga_delo', d.id)} aria-label="Odstrani"><Trash2 size={15} /></button></td>}
@@ -319,7 +328,7 @@ export function DelovniNalog({ n }) {
             ))}
             {!post.delo.length && <tr><td colSpan={9} className="sivo prazna-vrstica">Ni vpisanega dela.</td></tr>}
           </tbody>
-          {pisarna && <tfoot><tr><td colSpan={4}>Skupaj vrednost opravljenega dela (brez DDV)</td><td>{s.ure} h</td><td colSpan={2} /><td className="d">{fEur(s.delo)}</td>{lahko && <td />}</tr></tfoot>}
+          {pisarna && <tfoot><tr><td colSpan={4}>Skupaj vrednost opravljenega dela (brez DDV)</td><td>{s.ure} h</td><td /><td className="d">{fEur(s.delo)}</td>{lahko && <td />}</tr></tfoot>}
         </table>
         {lahko && <button className="gumb mali" onClick={() => dodaj('naloga_delo')}><Plus size={14} /> Vrstica dela</button>}
       </div>
@@ -327,7 +336,7 @@ export function DelovniNalog({ n }) {
       <div className="dn-tabela-ovoj">
         <table className="dn-tabela">
           <caption>II. Specifikacija materiala</caption>
-          <thead><tr><th>Naziv materiala</th><th>Količina</th><th>Enota</th>{pisarna && <><th>Cena/enoto</th><th>DDV</th><th className="d">Vrednost</th></>}{lahko && <th />}</tr></thead>
+          <thead><tr><th>Naziv materiala</th><th>Količina</th><th>Enota</th>{pisarna && <><th>Cena/enoto</th><th className="d">Vrednost</th></>}{lahko && <th />}</tr></thead>
           <tbody>
             {post.material.map((m) => (
               <tr key={m.id}>
@@ -338,7 +347,6 @@ export function DelovniNalog({ n }) {
                 <td><Celica {...cp} tabela="naloga_material" v={m} polje="enota" sirina={64} /></td>
                 {pisarna && <>
                   <td><Celica {...cp} tabela="naloga_material" v={m} polje="cena" tip="number" sirina={78} poseben={m.cena == null ? 'manjka' : ''} /></td>
-                  <td><DdvIzbira upd={upd} pisarna={pisarna} privzeto={n.ddv} tabela="naloga_material" v={m} /></td>
                   <td className="d">{fEur((m.kolicina || 0) * (m.cena || 0))}</td>
                 </>}
                 {lahko && <td><button className="ikona-gumb" onClick={() => odstrani('naloga_material', m.id)} aria-label="Odstrani"><Trash2 size={15} /></button></td>}
@@ -346,7 +354,7 @@ export function DelovniNalog({ n }) {
             ))}
             {!post.material.length && <tr><td colSpan={7} className="sivo prazna-vrstica">Ni porabljenega materiala.</td></tr>}
           </tbody>
-          {pisarna && <tfoot><tr><td colSpan={5}>Skupaj vrednost materiala (brez DDV)</td><td className="d">{fEur(s.material)}</td>{lahko && <td />}</tr></tfoot>}
+          {pisarna && <tfoot><tr><td colSpan={4}>Skupaj vrednost materiala (brez DDV)</td><td className="d">{fEur(s.material)}</td>{lahko && <td />}</tr></tfoot>}
         </table>
         <datalist id="cenik-material-dn">{cenik.filter((c) => c.tip === 'material').map((c) => <option key={c.id} value={c.naziv} />)}</datalist>
         {lahko && <button className="gumb mali" onClick={() => dodaj('naloga_material')}><Plus size={14} /> Vrstica materiala</button>}
@@ -355,13 +363,18 @@ export function DelovniNalog({ n }) {
       {pisarna && (
         <div className="dn-sestevek">
           {s.manjkaCena && <p className="opozorilo">Nekaterim postavkam manjka cena (označene rdeče).</p>}
+          <div className="ddv-delitev">
+            <span>Delitev DDV:</span>
+            <label><input type="number" min="0" max="100" step="5" value={delez} disabled={!!n.obracunano_at} onChange={(e) => setDelez(e.target.value)} onBlur={(e) => shraniDelez(e.target.value)} /> % po 9,5 %</label>
+            <span className="sivo">· {Math.round((100 - (Number(delez) || 0)) * 100) / 100} % po 22 %</span>
+            {!n.obracunano_at && <span className="hitri-delez">{[0, 50, 100].map((x) => <button key={x} type="button" className="gumb mali" onClick={() => shraniDelez(x)}>{x === 0 ? 'vse 22 %' : x === 100 ? 'vse 9,5 %' : '50 / 50'}</button>)}</span>}
+          </div>
           <table>
             <tbody>
-              <tr><th>Skupaj vrednost storitve (I. + II.) – osnova brez DDV</th><td>{fEur(s.osnova)}</td></tr>
-              {s.osnove[9.5] > 0 && <tr><th>Osnova 9,5 % · DDV 9,5 %</th><td>{fEur(s.osnove[9.5])} · {fEur(s.ddv[9.5])}</td></tr>}
-              {s.osnove[22] > 0 && <tr><th>Osnova 22 % · DDV 22 %</th><td>{fEur(s.osnove[22])} · {fEur(s.ddv[22])}</td></tr>}
-              {s.osnove[0] > 0 && <tr><th>Brez DDV</th><td>{fEur(s.osnove[0])}</td></tr>}
-              <tr className="skupaj"><th>SKUPAJ (osnova + DDV)</th><td>{fEur(s.skupaj)}</td></tr>
+              <tr><th>Skupaj vrednost storitve (I. + II.) – osnova brez DDV</th><td>{fEur(sprejemDelez.osnova)}</td></tr>
+              <tr><th>Osnova 9,5 % · DDV 9,5 %</th><td>{fEur(sprejemDelez.osnove[9.5])} · {fEur(sprejemDelez.ddv[9.5])}</td></tr>
+              <tr><th>Osnova 22 % · DDV 22 %</th><td>{fEur(sprejemDelez.osnove[22])} · {fEur(sprejemDelez.ddv[22])}</td></tr>
+              <tr className="skupaj"><th>SKUPAJ (osnova + DDV)</th><td>{fEur(sprejemDelez.skupaj)}</td></tr>
             </tbody>
           </table>
         </div>
@@ -385,19 +398,14 @@ export function DelovniNalog({ n }) {
 
 function GlavaObrazec({ n, onClose }) {
   const { toast, osvezi } = useData();
-  const [f, setF] = useState({ narocnik: n.narocnik || '', narocnik_id_st: n.narocnik_id_st || '', sm: n.sm || '', kontaktna_oseba: n.kontaktna_oseba || '', ddv: n.ddv });
-  const [vseVrstice, setVse] = useState(true);
+  const [f, setF] = useState({ narocnik: n.narocnik || '', narocnik_id_st: n.narocnik_id_st || '', sm: n.sm || '', kontaktna_oseba: n.kontaktna_oseba || '', email_stranke: n.email_stranke || '', datum_izpolnitve: n.datum_izpolnitve || '' });
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
   const shrani = async (e) => {
     e.preventDefault();
-    const z = { ...f, ddv: Number(f.ddv) };
-    for (const k of ['narocnik', 'narocnik_id_st', 'sm', 'kontaktna_oseba']) if (!z[k]) z[k] = null;
+    const z = { ...f };
+    for (const k of Object.keys(z)) if (!z[k]) z[k] = null;
     const { error } = await sb.from('naloge').update(z).eq('id', n.id);
     if (error) return toast('Napaka: ' + error.message, true);
-    if (vseVrstice && Number(f.ddv) !== Number(n.ddv)) {
-      await sb.from('naloga_delo').update({ ddv: Number(f.ddv) }).eq('naloga_id', n.id);
-      await sb.from('naloga_material').update({ ddv: Number(f.ddv) }).eq('naloga_id', n.id);
-    }
     toast('Shranjeno'); osvezi(); onClose();
   };
   return (
@@ -407,10 +415,8 @@ function GlavaObrazec({ n, onClose }) {
         <Polje label="ID št. (davčna)"><input value={f.narocnik_id_st} onChange={set('narocnik_id_st')} /></Polje>
         <Polje label="SM (stroškovno mesto)"><input value={f.sm} onChange={set('sm')} /></Polje>
         <Polje label="Kontaktna oseba"><input value={f.kontaktna_oseba} onChange={set('kontaktna_oseba')} /></Polje>
-        <Polje label="DDV">
-          <select value={f.ddv} onChange={set('ddv')}>{DDV_STOPNJE.map((x) => <option key={x} value={x}>{String(x).replace('.', ',')} %</option>)}</select>
-        </Polje>
-        {Number(f.ddv) !== Number(n.ddv) && <label className="potrditev siroko"><input type="checkbox" checked={vseVrstice} onChange={(e) => setVse(e.target.checked)} /> Spremeni DDV tudi na vseh postavkah</label>}
+        <Polje label="Datum izpolnitve naloga"><input type="date" value={f.datum_izpolnitve} onChange={set('datum_izpolnitve')} /></Polje>
+        <Polje label="E-pošta stranke (za PDF)" siroko><input type="email" value={f.email_stranke} onChange={set('email_stranke')} /></Polje>
         <div className="gumbi siroko"><button type="button" className="gumb" onClick={onClose}>Prekliči</button><button className="gumb primarni">Shrani</button></div>
       </form>
     </Modal>
