@@ -533,8 +533,9 @@ export async function htmlNaloga(n, { obj, nap, dodVsi = [], ust, profili = [] }
   const st = (x) => x == null ? '' : Number(x).toLocaleString('sl-SI', { maximumFractionDigits: 2 });
   const eur = (x) => x ? fEur(x) : '';
   const prazne = (k, stolpcev, prvaSirina = 1) => Array.from({ length: Math.max(0, k) }, () => `<tr><td colspan="${prvaSirina}">&nbsp;</td>${'<td></td>'.repeat(stolpcev - 1)}</tr>`).join('');
-  const del = delo.map((x) => `<tr><td>${fDatum(x.datum)}</td><td>${esc(ime(x.izvajalec_id))}</td><td>${x.od ? x.od.slice(0, 5) + '–' + (x.do || '').slice(0, 5) : ''}</td><td class="d">${st(x.ure)}</td><td class="d">${eur(x.cena)}</td><td class="d">${eur((x.ure || 0) * (x.cena || 0))}</td></tr>`).join('') + prazne(4 - delo.length, 6);
-  const mt = mat.map((x) => `<tr><td colspan="3">${esc(x.naziv)}</td><td class="d">${st(x.kolicina)} ${esc(x.enota || '')}</td><td class="d">${eur(x.cena)}</td><td class="d">${eur((x.kolicina || 0) * (x.cena || 0))}</td></tr>`).join('') + prazne(4 - mat.length, 4, 3);
+  const bc = zaPdf; // za stranko: brez cen
+  const del = delo.map((x) => `<tr><td>${fDatum(x.datum)}</td><td>${esc(ime(x.izvajalec_id))}</td><td>${x.od ? x.od.slice(0, 5) + '–' + (x.do || '').slice(0, 5) : ''}</td><td class="d">${st(x.ure)}</td>${bc ? '' : `<td class="d">${eur(x.cena)}</td><td class="d">${eur((x.ure || 0) * (x.cena || 0))}</td>`}</tr>`).join('') + (bc ? '' : prazne(4 - delo.length, 6));
+  const mt = mat.map((x) => `<tr><td colspan="3">${esc(x.naziv)}</td><td class="d">${st(x.kolicina)} ${esc(x.enota || '')}</td>${bc ? '' : `<td class="d">${eur(x.cena)}</td><td class="d">${eur((x.kolicina || 0) * (x.cena || 0))}</td>`}</tr>`).join('') + (bc ? (mat.length ? '' : '<tr><td colspan="4" class="mali">Brez porabljenega materiala.</td></tr>') : prazne(4 - mat.length, 4, 3));
   const sestavil = ime(n.pregledal_id);
   const html = `<!DOCTYPE html><html lang="sl"><head><meta charset="utf-8"><title>Delovni nalog ${n.id}</title>
 <style>
@@ -563,37 +564,37 @@ export async function htmlNaloga(n, { obj, nap, dodVsi = [], ust, profili = [] }
 </tr></table>
 <table class="sekcija">
   <tr><td class="lbl">Naročnik</td><td colspan="5">${esc(n.narocnik)}</td><td class="lbl">ID št.</td><td>${esc(n.narocnik_id_st)}</td></tr>
-  <tr><td class="lbl">Naročeno dne</td><td>${fDatum(n.created_at)}</td><td class="lbl">Začeto dne</td><td>${n.zacetek_at ? fDatum(n.zacetek_at) : ''}</td><td class="lbl">Končano dne</td><td>${n.opravljeno_at ? fDatum(n.opravljeno_at) : ''}</td><td class="lbl">SM</td><td>${esc(n.sm)}</td></tr>
-  <tr><td class="lbl">Datum izpolnitve</td><td>${n.datum_izpolnitve ? fDatum(n.datum_izpolnitve) : ''}</td><td class="lbl">Način</td><td colspan="3">${n.za_racun ? 'Zaračuna se' : 'Delo po pogodbi'}</td><td class="lbl">E-pošta</td><td>${esc(n.email_stranke)}</td></tr>
-  <tr><td class="lbl">Objekt / stan. / posl. pr.</td><td colspan="5">${obj ? esc(obj.naziv + ', ' + obj.naslov + ', ' + obj.kraj) : esc(n.lokacija)}${nap ? '<br><span class="mali">' + esc(nap.tip + ' ' + (nap.proizvajalec || '') + ' ' + (nap.model || '')) + '</span>' : ''}</td><td class="lbl">DDV</td><td>${s.delez95 >= 100 ? '9,5 %' : s.delez95 <= 0 ? '22 %' : String(s.delez95).replace('.', ',') + ' % po 9,5 %'}</td></tr>
+  <tr><td class="lbl">Naročeno dne</td><td>${fDatum(n.created_at)}</td><td class="lbl">Začeto dne</td><td>${n.zacetek_at ? fDatum(n.zacetek_at) : ''}</td><td class="lbl">Končano dne</td><td>${n.opravljeno_at ? fDatum(n.opravljeno_at) : ''}</td>${bc ? '<td colspan="2"></td>' : `<td class="lbl">SM</td><td>${esc(n.sm)}</td>`}</tr>
+  <tr><td class="lbl">Datum izpolnitve</td><td>${n.datum_izpolnitve ? fDatum(n.datum_izpolnitve) : ''}</td>${bc ? '<td colspan="4"></td>' : `<td class="lbl">Način</td><td colspan="3">${n.za_racun ? 'Zaračuna se' : 'Delo po pogodbi'}</td>`}<td class="lbl">E-pošta</td><td>${esc(n.email_stranke)}</td></tr>
+  <tr><td class="lbl">Objekt / stan. / posl. pr.</td><td colspan="5">${obj ? esc(obj.naziv + ', ' + obj.naslov + ', ' + obj.kraj) : esc(n.lokacija)}${nap ? '<br><span class="mali">' + esc(nap.tip + ' ' + (nap.proizvajalec || '') + ' ' + (nap.model || '')) + '</span>' : ''}</td>${bc ? '<td colspan="2"></td>' : `<td class="lbl">DDV</td><td>${s.delez95 >= 100 ? '9,5 %' : s.delez95 <= 0 ? '22 %' : String(s.delez95).replace('.', ',') + ' % po 9,5 %'}</td>`}</tr>
   <tr><td class="lbl">Prijavil</td><td colspan="3">${esc([n.prijavitelj, n.prijavitelj_kontakt].filter(Boolean).join(', '))}</td><td class="lbl">Kontakt. oseba</td><td colspan="3">${esc(n.kontaktna_oseba)}</td></tr>
   <tr><td class="lbl">Izvajalec</td><td colspan="7">${esc([...new Set([...dodVsi.map((p) => p.ime), ...delo.map((x) => ime(x.izvajalec_id))].filter(Boolean))].join(', '))}</td></tr>
 </table>
 <table class="sekcija"><caption>OPIS NAROČILA / IZVEDBE DEL</caption><tr><td class="opis"><b>${esc(n.naslov)}</b>${n.opis ? '\n' + esc(n.opis) : ''}${n.porocilo ? '\n\nIzvedeno: ' + esc(n.porocilo) : ''}</td></tr></table>
 <table class="sekcija"><caption>I. SPECIFIKACIJA DELA</caption>
-  <tr><th>Datum</th><th>Izvajalec (ime in priimek)</th><th>Čas (od – do)</th><th class="d">Ure skupaj</th><th class="d">Cena/enoto</th><th class="d">Vrednost (brez DDV)</th></tr>
+  <tr><th>Datum</th><th>Izvajalec (ime in priimek)</th><th>Čas (od – do)</th><th class="d">Ure skupaj</th>${bc ? '' : '<th class="d">Cena/enoto</th><th class="d">Vrednost (brez DDV)</th>'}</tr>
   ${del}
-  <tr class="skupaj"><td colspan="5">Skupaj vrednost opravljenega dela (brez DDV) v EUR</td><td class="d">${eur(s.delo)}</td></tr>
+  ${bc ? `<tr class="skupaj"><td colspan="3">Skupaj ur</td><td class="d">${st(s.ure)}</td></tr>` : `<tr class="skupaj"><td colspan="5">Skupaj vrednost opravljenega dela (brez DDV) v EUR</td><td class="d">${eur(s.delo)}</td></tr>`}
 </table>
 <table class="sekcija"><caption>II. SPECIFIKACIJA MATERIALA</caption>
-  <tr><th colspan="3">Naziv materiala</th><th class="d">Količina</th><th class="d">Cena/enoto</th><th class="d">Vrednost (brez DDV)</th></tr>
+  <tr><th colspan="3">Naziv materiala</th><th class="d">Količina</th>${bc ? '' : '<th class="d">Cena/enoto</th><th class="d">Vrednost (brez DDV)</th>'}</tr>
   ${mt}
-  <tr class="skupaj"><td colspan="5">Skupaj vrednost materiala (brez DDV) v EUR</td><td class="d">${eur(s.material)}</td></tr>
+  ${bc ? '' : `<tr class="skupaj"><td colspan="5">Skupaj vrednost materiala (brez DDV) v EUR</td><td class="d">${eur(s.material)}</td></tr>`}
 </table>
-<table class="sekcija">
+${bc ? '' : `<table class="sekcija">
   <tr class="skupaj"><td colspan="5">SKUPAJ VREDNOST STORITVE (I. delo + II. mat.) – osnova brez DDV</td><td class="d">${eur(s.osnova)}</td></tr>
   <tr><td class="lbl">osnova za 9,5 %</td><td class="d">${eur(s.osnove[9.5])}</td><td class="lbl">znesek DDV 9,5 %</td><td class="d">${eur(s.ddv[9.5])}</td><td class="lbl">∑ osn. + DDV 9,5 %</td><td class="d">${eur(s.osnove[9.5] + s.ddv[9.5])}</td></tr>
   <tr><td class="lbl">osnova za 22 %</td><td class="d">${eur(s.osnove[22])}</td><td class="lbl">znesek DDV 22 %</td><td class="d">${eur(s.ddv[22])}</td><td class="lbl">∑ osn. + DDV 22 %</td><td class="d">${eur(s.osnove[22] + s.ddv[22])}</td></tr>
   <tr class="skupaj"><td colspan="5">SKUPAJ (osnova + DDV)</td><td class="d">${eur(s.skupaj)}</td></tr>
-</table>
+</table>`}
 <table class="sekcija"><caption>PRIMOPREDAJA DEL</caption>
   <tr><th>Izvajalec (ime in priimek / podpis / žig)</th><th>Naročnik – prevzemnik (ime in priimek / podpis / žig)</th><th>Datum</th></tr>
   <tr><td class="podpis">${esc(dodVsi.map((p) => p.ime).join(', '))}</td><td class="podpis">${podpis ? `<img src="${podpis}" alt="podpis"><br>` : ''}${esc(n.podpis_ime || '')}${n.podpis_status === 'ni_prisoten' ? '<span class="mali">Stranka ni bila prisotna</span>' : ''}</td><td>${n.podpis_at ? fCas(n.podpis_at) : n.opravljeno_at ? fDatum(n.opravljeno_at) : ''}</td></tr>
 </table>
-<table class="sekcija"><caption>OBRAČUN DEL</caption>
+${bc ? '' : `<table class="sekcija"><caption>OBRAČUN DEL</caption>
   <tr><th>Obračun sestavil (ime in priimek / podpis)</th><th>Datum</th><th>Številka računa</th></tr>
   <tr><td style="height:34px">${esc(sestavil)}</td><td>${n.pregledano_at ? fDatum(n.pregledano_at) : ''}</td><td>${esc(n.stevilka_racuna)}</td></tr>
-</table>
+</table>`}
 <p class="mali">Izpisano iz aplikacije DOMtim, ${new Date().toLocaleString('sl-SI')}</p>
 ${zaPdf ? '' : '<script>Promise.all([...document.images].map((i) => i.complete ? 1 : new Promise((r) => { i.onload = i.onerror = r; setTimeout(r, 3000); }))).then(() => setTimeout(() => window.print(), 300));<\/script>'}
 </body></html>`;
