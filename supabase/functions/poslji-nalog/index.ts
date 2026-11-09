@@ -26,7 +26,7 @@ Deno.serve(async (req) => {
   const prejemnik = (n.email_stranke || '').trim();
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(prejemnik)) return odg({ napaka: 'Nalog nima veljavne e-pošte stranke' }, 400);
 
-  const geslo = Deno.env.get('SMTP_GESLO');
+  const geslo = (Deno.env.get('SMTP_GESLO') || '').trim();
   if (!geslo) return odg({ napaka: 'Geslo za e-pošto (SMTP_GESLO) še ni nastavljeno v Supabase' }, 500);
 
   const { data: dat, error: e1 } = await sb.storage.from('dokumenti').download(pot);
@@ -38,8 +38,9 @@ Deno.serve(async (req) => {
 
   const t = nodemailer.createTransport({ host: 'mail.domtim.si', port: 465, secure: true, auth: { user: POSILJATELJ, pass: geslo } });
   const besedilo = `Spoštovani,\n\nv priponki vam pošiljamo delovni nalog št. ${n.id} (${n.naslov})${objekt ? ' za ' + objekt : ''}.\n\nZa morebitna vprašanja smo vam na voljo na 05 99 22 140 ali na ${POSILJATELJ}.\n\nLep pozdrav,\nDOMtim d.o.o.\nHrastinska pot 36, Brežice`;
+  let rezultat: { messageId?: string; response?: string; accepted?: unknown[]; rejected?: unknown[] } = {};
   try {
-    await t.sendMail({
+    rezultat = await t.sendMail({
       from: `DOMtim <${POSILJATELJ}>`,
       to: prejemnik,
       bcc: POSILJATELJ,
@@ -56,6 +57,7 @@ Deno.serve(async (req) => {
     return odg({ napaka: 'Pošiljanje ni uspelo: ' + sporocilo }, 502);
   }
   await sb.from('naloge').update({ pdf_poslan_at: new Date().toISOString(), pdf_poslan_na: prejemnik, pdf_napaka: null }).eq('id', n.id);
-  await sb.from('komentarji').insert({ naloga_id: n.id, avtor_id: jaz.id, besedilo: `PDF delovnega naloga poslan stranki na ${prejemnik}`, sistemski: true });
-  return odg({ ok: true, poslano_na: prejemnik });
+  console.log('poslano', JSON.stringify({ naloga: n.id, prejemnik, messageId: rezultat.messageId, response: rezultat.response, accepted: rezultat.accepted, rejected: rezultat.rejected }));
+  await sb.from('komentarji').insert({ naloga_id: n.id, avtor_id: jaz.id, besedilo: `PDF delovnega naloga poslan stranki na ${prejemnik} (strežnik: ${(rezultat.response || '').slice(0, 120)}; oznaka ${rezultat.messageId || '–'})`, sistemski: true });
+  return odg({ ok: true, poslano_na: prejemnik, messageId: rezultat.messageId, response: rezultat.response });
 });
