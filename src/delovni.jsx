@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Plus, Trash2, Check, Eraser, PenLine, UserX, Clock, Package, HardHat } from 'lucide-react';
 import { sb, isoDan, fDatum, fCas, fMinute, dodeljeni, jeDodeljen } from './lib.js';
 import { useData, Modal, Polje, Avatar, NacinIzbira } from './ui.jsx';
+import { posljiNalogStranki } from './naloga.jsx';
 
 /* ---------- pomožno ---------- */
 export const fEur = (x) => (x == null || isNaN(x) ? '–' : Number(x).toLocaleString('sl-SI', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €');
@@ -92,7 +93,7 @@ async function shraniPodpis(platno, nalogaId) {
 
 /* ---------- Zaključek naloga (teren) ---------- */
 export function ZakljuciObrazec({ n, onClose }) {
-  const { me, profili, toast, osvezi } = useData();
+  const { me, profili, objekti, naprave, toast, osvezi } = useData();
   const cenik = useCenik();
   const [post, , ] = usePostavke(n.id);
   const pisarna = me.vloga !== 'teren';
@@ -162,6 +163,21 @@ export function ZakljuciObrazec({ n, onClose }) {
       } else if (niPrisoten) { upd.podpis_status = 'ni_prisoten'; upd.podpis_at = new Date().toISOString(); }
       r = await sb.from('naloge').update(upd).eq('id', n.id); if (r.error) throw r.error;
       toast(`Nalog #${n.id} zaključen`); osvezi(); onClose();
+      // podpisan nalog se samodejno pošlje stranki
+      if (upd.podpis_status === 'podpisano' && upd.email_stranke) {
+        toast('Pošiljam PDF stranki …');
+        try {
+          const { data: sveze } = await sb.from('naloge').select('*').eq('id', n.id).single();
+          const ctx = {
+            obj: objekti.find((o) => o.id === sveze.objekt_id), nap: naprave.find((x) => x.id === sveze.naprava_id),
+            dodVsi: dodeljeni(sveze).map((id) => profili.find((p) => p.id === id)).filter(Boolean),
+            ust: profili.find((p) => p.id === sveze.ustvaril_id), profili,
+          };
+          await posljiNalogStranki(sveze, ctx);
+          toast(`PDF poslan stranki na ${upd.email_stranke}`);
+        } catch (err) { toast('PDF ni bil poslan: ' + err.message + ' – pošlji ga ponovno v nalogu.', true); }
+      }
+      return;
     } catch (err) { toast('Napaka: ' + err.message, true); }
     setShranjujem(false);
   };

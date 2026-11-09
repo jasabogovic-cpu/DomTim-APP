@@ -162,7 +162,7 @@ function toLocalInput(s) {
 
 /* ---------- Podrobnosti naloga ---------- */
 export function NalogaPodrobno({ id, onClose }) {
-  const { naloge, profili, objekti, naprave, me, toast, odpriObjekt } = useData();
+  const { naloge, profili, objekti, naprave, me, toast, odpriObjekt, osvezi } = useData();
   const n = naloge.find((x) => x.id === id);
   const [uredi, setUredi] = useState(false);
   const [zakljuci, setZakljuci] = useState(false);
@@ -186,6 +186,13 @@ export function NalogaPodrobno({ id, onClose }) {
   const obracun = async (da) => {
     const { error } = await sb.from('naloge').update(da ? { obracunano_at: new Date().toISOString(), obracunal_id: me.id } : { obracunano_at: null, obracunal_id: null }).eq('id', n.id);
     if (error) toast('Napaka: ' + error.message, true); else toast(da ? 'Označeno kot obračunano' : 'Vrnjeno med neobračunane');
+  };
+  const [posiljam, setPosiljam] = useState(false);
+  const posljiPdf = async () => {
+    setPosiljam(true);
+    try { await posljiNalogStranki(n, { obj, nap, dod, dodVsi, ust, profili }); toast(`PDF poslan na ${n.email_stranke}`); osvezi(); }
+    catch (err) { toast('Pošiljanje ni uspelo: ' + err.message, true); osvezi(); }
+    setPosiljam(false);
   };
   const izbrisi = async () => {
     if (!confirm(`Izbrišem nalog #${n.id}? Tega ni mogoče razveljaviti.`)) return;
@@ -250,6 +257,16 @@ export function NalogaPodrobno({ id, onClose }) {
           </dl>
           {lahkoUreja && <button className="gumb polna" onClick={() => setUredi(true)}><Pencil size={15} /> Uredi nalog</button>}
           <button className="gumb polna" onClick={() => natisniNalog(n, { obj, nap, dod, dodVsi, ust, profili })}><Printer size={15} /> Natisni / PDF</button>
+          {n.status === 'opravljena' && (
+            <div className="posiljanje">
+              <button className="gumb polna" disabled={!n.email_stranke || posiljam} onClick={posljiPdf} title={n.email_stranke ? '' : 'Na nalogu ni e-pošte stranke (vpiši jo v »Uredi glavo«)'}>
+                <Mail size={15} /> {posiljam ? 'Pošiljam …' : n.pdf_poslan_at ? 'Pošlji PDF ponovno' : 'Pošlji PDF stranki'}
+              </button>
+              {n.pdf_poslan_at ? <small className="zeleno"><Check size={12} className="ik" /> Poslano {fCas(n.pdf_poslan_at)} na {n.pdf_poslan_na}</small>
+                : n.pdf_napaka ? <small className="rdece">Pošiljanje ni uspelo: {n.pdf_napaka}</small>
+                : !n.email_stranke ? <small className="sivo">Ni e-pošte stranke.</small> : null}
+            </div>
+          )}
           {me.vloga === 'vodja' && <button className="gumb polna nevarno" onClick={izbrisi}>Izbriši</button>}
         </aside>
       </div>
@@ -491,17 +508,20 @@ export function ObracunFaze({ n }) {
 
 /* ---------- Tiskanje delovnega naloga po vzoru papirnatega obrazca ---------- */
 const esc = (x) => String(x ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-export async function natisniNalog(n, { obj, nap, dod, dodVsi = [], ust, profili = [] }) {
-  const w = window.open('', '_blank');
-  if (!w) return alert('Brskalnik je blokiral novo okno. Dovoli pojavna okna za to stran.');
-  w.document.write('<p style="font:14px Arial;padding:20px">Pripravljam delovni nalog …</p>');
+const vDataUrl = async (url) => {
+  const b = await (await fetch(url)).blob();
+  return new Promise((r) => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(b); });
+};
+
+/** HTML delovnega naloga po vzoru papirnatega obrazca (za tisk in za PDF). */
+export async function htmlNaloga(n, { obj, nap, dodVsi = [], ust, profili = [] }, zaPdf = false) {
   const [d, m] = await Promise.all([
     sb.from('naloga_delo').select('*').eq('naloga_id', n.id).order('datum').order('id'),
     sb.from('naloga_material').select('*').eq('naloga_id', n.id).order('id'),
   ]);
   const delo = d.data || [], mat = m.data || [];
   let podpis = '';
-  if (n.podpis_pot) { const { data } = await sb.storage.from('dokumenti').createSignedUrl(n.podpis_pot, 600); podpis = data?.signedUrl || ''; }
+  if (n.podpis_pot) { const { data } = await sb.storage.from('dokumenti').createSignedUrl(n.podpis_pot, 600); podpis = data?.signedUrl || ''; try { if (podpis) podpis = await vDataUrl(podpis); } catch {} }
   const s = izracun(delo, mat, n.ddv_delez_95);
   // logo vgradimo neposredno v dokument, da je zagotovo na izpisu
   let logo = new URL('ikone/logo-polni.png', location.href).href;
@@ -575,7 +595,51 @@ export async function natisniNalog(n, { obj, nap, dod, dodVsi = [], ust, profili
   <tr><td style="height:34px">${esc(sestavil)}</td><td>${n.pregledano_at ? fDatum(n.pregledano_at) : ''}</td><td>${esc(n.stevilka_racuna)}</td></tr>
 </table>
 <p class="mali">Izpisano iz aplikacije DOMtim, ${new Date().toLocaleString('sl-SI')}</p>
-<script>Promise.all([...document.images].map((i) => i.complete ? 1 : new Promise((r) => { i.onload = i.onerror = r; setTimeout(r, 3000); }))).then(() => setTimeout(() => window.print(), 300));<\/script>
+${zaPdf ? '' : '<script>Promise.all([...document.images].map((i) => i.complete ? 1 : new Promise((r) => { i.onload = i.onerror = r; setTimeout(r, 3000); }))).then(() => setTimeout(() => window.print(), 300));<\/script>'}
 </body></html>`;
+  return zaPdf ? html.replace('</style>', 'body { width: 794px; padding: 34px 38px; background: #fff; } </style>') : html;
+}
+
+export async function natisniNalog(n, ctx) {
+  const w = window.open('', '_blank');
+  if (!w) return alert('Brskalnik je blokiral novo okno. Dovoli pojavna okna za to stran.');
+  w.document.write('<p style="font:14px Arial;padding:20px">Pripravljam delovni nalog …</p>');
+  const html = await htmlNaloga(n, ctx);
   w.document.open(); w.document.write(html); w.document.close();
+}
+
+/** Iz delovnega naloga naredi PDF (A4), ga shrani in pošlje stranki na e-pošto. */
+export async function posljiNalogStranki(n, ctx) {
+  const html = await htmlNaloga(n, ctx, true);
+  const okvir = document.createElement('iframe');
+  okvir.style.cssText = 'position:fixed;left:-10000px;top:0;width:870px;height:1200px;border:0;';
+  document.body.appendChild(okvir);
+  try {
+    okvir.contentDocument.open(); okvir.contentDocument.write(html); okvir.contentDocument.close();
+    await new Promise((r) => setTimeout(r, 300));
+    await Promise.all([...okvir.contentDocument.images].map((i) => i.complete ? 1 : new Promise((r) => { i.onload = i.onerror = r; setTimeout(r, 4000); })));
+    const [{ default: html2canvas }, { jsPDF }] = [await import('html2canvas'), await import('jspdf')];
+    const platno = await html2canvas(okvir.contentDocument.body, { scale: 2, backgroundColor: '#ffffff', windowWidth: 870 });
+    const pdf = new jsPDF({ unit: 'mm', format: 'a4', compress: true });
+    const sirina = 210, visinaStrani = 297;
+    const pxNaMm = platno.width / sirina, visinaPx = Math.floor(visinaStrani * pxNaMm);
+    for (let y = 0, stran = 0; y < platno.height; y += visinaPx, stran++) {
+      const kos = document.createElement('canvas'); kos.width = platno.width; kos.height = Math.min(visinaPx, platno.height - y);
+      kos.getContext('2d').drawImage(platno, 0, y, platno.width, kos.height, 0, 0, platno.width, kos.height);
+      if (stran) pdf.addPage();
+      pdf.addImage(kos.toDataURL('image/jpeg', 0.85), 'JPEG', 0, 0, sirina, kos.height / pxNaMm);
+    }
+    const blob = pdf.output('blob');
+    const pot = `delovni-nalogi/${n.id}_${Date.now()}.pdf`;
+    const up = await sb.storage.from('dokumenti').upload(pot, blob, { contentType: 'application/pdf' });
+    if (up.error) throw up.error;
+    await sb.from('dokumenti').insert({ ime: `Delovni nalog ${n.id}.pdf`, pot, mapa: 'Zapisniki in poročila', velikost: blob.size, mime: 'application/pdf', objekt_id: n.objekt_id || null, naloga_id: n.id });
+    const { data, error } = await sb.functions.invoke('poslji-nalog', { body: { naloga_id: n.id, pot } });
+    if (error) {
+      let sporocilo = error.message;
+      try { sporocilo = (await error.context.json()).napaka || sporocilo; } catch {}
+      throw new Error(sporocilo);
+    }
+    return data;
+  } finally { okvir.remove(); }
 }

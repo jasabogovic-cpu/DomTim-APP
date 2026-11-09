@@ -584,3 +584,4 @@ main, .stran, .kartica, .naloga-vrstica, .nv-glavno { min-width: 0; }
 .du-dnevi small { display: block; font-size: 11px; } .du-dnevi b { font-size: 15px; }
 .du-podrobno { margin-top: 10px; font-size: 13px; }
 @media (max-width: 820px) { .obdobje b { min-width: 0; } .evidenca-vrh .segment { order: 0; } .delavec-izbor { flex: 1 1 100%; } .du-dnevi { gap: 3px; } .du-dnevi b { font-size: 13px; } }
+.posiljanje { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; } .posiljanje small { font-size: 12px; overflow-wrap: anywhere; }
