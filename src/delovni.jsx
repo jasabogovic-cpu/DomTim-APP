@@ -4,6 +4,9 @@ import { sb, isoDan, fDatum, fCas, fMinute, dodeljeni, jeDodeljen } from './lib.
 import { useData, Modal, Polje, Avatar, NacinIzbira } from './ui.jsx';
 import { posljiNalogStranki } from './naloga.jsx';
 
+// privzeta urna postavka = najstarejša aktivna postavka »delo / ura« (v ceniku prva po vrsti)
+const privzetaDela = (cenik) => cenik.filter((c) => c.tip === 'delo' && c.enota === 'ura').sort((a, b) => a.id - b.id)[0];
+
 /* ---------- pomožno ---------- */
 export const fEur = (x) => (x == null || isNaN(x) ? '–' : Number(x).toLocaleString('sl-SI', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €');
 const st = (x) => (x === '' || x == null ? null : Number(String(x).replace(',', '.')));
@@ -121,7 +124,7 @@ export function ZakljuciObrazec({ n, onClose }) {
     setMat(post.material.length ? post.material.map((m) => ({ ...m })) : []);
   }, [post.nalozeno]);
 
-  const privzetaCenaDela = () => cenik.find((c) => c.tip === 'delo' && c.enota === 'ura')?.cena ?? null;
+  const privzetaCenaDela = () => privzetaDela(cenik)?.cena ?? null;
   const posodobiDelo = (i, k, v) => setDelo((x) => x.map((d, j) => {
     if (j !== i) return d; const nd = { ...d, [k]: v };
     if ((k === 'od' || k === 'do') && nd.od && nd.do) nd.ure = ureMed(nd.od, nd.do);
@@ -292,7 +295,7 @@ export function DelovniNalog({ n }) {
   };
   const dodaj = async (tabela) => {
     const z = tabela === 'naloga_delo'
-      ? { naloga_id: n.id, izvajalec_id: n.dodeljeno_id || me.id, ure: 1, cena: cenik.find((c) => c.tip === 'delo' && c.enota === 'ura')?.cena ?? null }
+      ? { naloga_id: n.id, izvajalec_id: n.dodeljeno_id || me.id, ure: 1, cena: privzetaDela(cenik)?.cena ?? null }
       : { naloga_id: n.id, naziv: 'Material', kolicina: 1 };
     const { error } = await sb.from(tabela).insert(z); if (error) toast('Napaka: ' + error.message, true); else nalozi();
   };

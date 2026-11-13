@@ -3,11 +3,12 @@ import { createRoot } from 'react-dom/client';
 import { sb, AKTIVNI, jeDodeljen } from './lib.js';
 import { DataCtx, Avatar } from './ui.jsx';
 import { NalogaObrazec, NalogaPodrobno, HitriVnos } from './naloga.jsx';
-import { LayoutDashboard, ListChecks, ClipboardList, CalendarDays, Building2, Flame, FolderOpen, Users, LogOut, Menu, Plus, X, PhoneCall, Receipt, Clock } from 'lucide-react';
+import { LayoutDashboard, ListChecks, ClipboardList, CalendarDays, Building2, Flame, FolderOpen, Users, LogOut, Menu, Plus, X, PhoneCall, Receipt, Clock, KeyRound } from 'lucide-react';
 
 const Logo = ({ visina = 34 }) => <img src="ikone/logo.png" alt="DOMtim" className="logo-slika" style={{ height: visina }} />;
 import { Pregled, Naloge, Moje, Plan, Objekti, Naprave, Dokumenti, Ekipa, Obracun } from './views.jsx';
 import { Evidenca } from './evidenca.jsx';
+import { SpremeniGeslo } from './geslo.jsx';
 import { useObvestila, ObvestilaPasica, ObvestilaStikalo, odjaviNarocnino, testnoObvestilo } from './push.jsx';
 
 // --- Namestitev na telefon (PWA) ---
@@ -107,6 +108,7 @@ function Aplikacija({ session }) {
   const [pot, setPot] = useState(beriHash());
   const [odprtaNaloga, setOdprtaNaloga] = useState(null);
   const [novaPriv, setNovaPriv] = useState(null);
+  const [geslo, setGeslo] = useState(false);
   const [obvestila, setObvestila] = useState([]);
   const [meni, setMeni] = useState(false);
   const [hitri, setHitri] = useState(false);
@@ -219,8 +221,10 @@ function Aplikacija({ session }) {
           <div className="jaz">
             <Avatar p={me} size={34} />
             <div><b>{me.ime}</b><small>{me.delovno_mesto}</small></div>
+            <button className="ikona-gumb" title="Spremeni geslo" onClick={() => setGeslo(true)}><KeyRound size={18} /></button>
             <button className="ikona-gumb" title="Odjava" onClick={async () => { await odjaviNarocnino(); sb.auth.signOut(); }}><LogOut size={18} /></button>
           </div>
+          <button className="odjava-mobilno" onClick={() => { setMeni(false); setGeslo(true); }}><KeyRound size={17} /> Spremeni geslo</button>
           <button className="odjava-mobilno" onClick={async () => { await odjaviNarocnino(); sb.auth.signOut(); }}><LogOut size={17} /> Odjava</button>
         </aside>
         <div className="mobilna-glava">
@@ -238,6 +242,7 @@ function Aplikacija({ session }) {
       </div>
       {odprtaNaloga && <NalogaPodrobno id={odprtaNaloga} onClose={() => setOdprtaNaloga(null)} />}
       {novaPriv && <NalogaObrazec privzeto={novaPriv} onClose={() => setNovaPriv(null)} onSaved={(n) => { osvezi(); setOdprtaNaloga(n.id); }} />}
+      {geslo && <SpremeniGeslo onClose={() => setGeslo(false)} toast={toast} />}
       {hitri && <HitriVnos onClose={() => setHitri(false)} onVec={(priv) => { setHitri(false); setNovaPriv(Object.fromEntries(Object.entries(priv).filter(([, v]) => v != null))); }} onSaved={(n) => setOdprtaNaloga(n.id)} />}
       <div className="obvestila">{obvestila.map((o) => <div key={o.id} className={'obvestilo' + (o.napaka ? ' napaka' : '')}>{o.t}</div>)}</div>
     </DataCtx.Provider>
