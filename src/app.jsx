@@ -49,19 +49,14 @@ function Namesti({ vedno }) {
   );
 }
 
-const DEMO = [
-  ['direktor@domtim.demo', 'Direktor', 'Andrej Z.'],
-  ['poslovodja@domtim.demo', 'Poslovodja', 'Petra K.'],
-  ['teren1@domtim.demo', 'Serviser (teren)', 'Rok K.'],
-  ['teren3@domtim.demo', 'Hišnik (teren)', 'Jure L.'],
-];
 
 function Prijava() {
   const [email, setEmail] = useState('');
   const [geslo, setGeslo] = useState('');
   const [napaka, setNapaka] = useState('');
   const [nalagam, setNalagam] = useState(false);
-  const prijava = async (e, em = email, pw = geslo) => {
+  const prijava = async (e) => {
+    const em = email, pw = geslo;
     e?.preventDefault();
     setNalagam(true); setNapaka('');
     const { error } = await sb.auth.signInWithPassword({ email: em.trim(), password: pw });
@@ -79,15 +74,8 @@ function Prijava() {
           {napaka && <div className="napaka">{napaka}</div>}
           <button className="gumb primarni polna" disabled={nalagam}>{nalagam ? 'Prijavljam …' : 'Prijava'}</button>
         </form>
+        <p className="namig" style={{ textAlign: 'center', marginTop: 12 }}>Pozabljeno geslo? Sporoči v pisarno, da ti nastavijo novo.</p>
         <Namesti vedno />
-        <div className="demo">
-          <p>Preizkusni dostop (prototip):</p>
-          <div className="demo-gumbi">
-            {DEMO.map(([em, vloga, ime]) => (
-              <button key={em} className="gumb mali" onClick={() => prijava(null, em, 'Domtim2026!')}><b>{vloga}</b><small>{ime}</small></button>
-            ))}
-          </div>
-        </div>
       </div>
     </div>
   );

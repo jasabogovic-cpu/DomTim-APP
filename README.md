@@ -23,16 +23,8 @@ npm install
 ./build.sh .     # zgradi v koren repozitorija
 ```
 
-## Preizkusni računi (geslo `Domtim2026!`)
-| Vloga | E-naslov |
-|---|---|
-| Direktor | direktor@domtim.demo |
-| Poslovodja | poslovodja@domtim.demo |
-| Upravnik / upravnica | upravnik1@domtim.demo, upravnik2@domtim.demo |
-| Računovodstvo | racunovodstvo@domtim.demo |
-| Teren | teren1@domtim.demo (serviser), teren2@domtim.demo (vzdrževalec), teren3@domtim.demo (hišnik) |
-
-Pred pravo uporabo zamenjaj gesla in računom dodaj prave e-naslove zaposlenih.
+## Računi
+Preizkusni računi so bili 13. 11. 2026 izbrisani. Vsak zaposleni ima svoj račun (vloga `vodja` = vse pravice vključno z brisanjem, `teren` = vsi nalogi brez obračuna). Geslo si vsak zamenja sam v meniju »Spremeni geslo«.
 
 ## Nočna varnostna kopija
 
