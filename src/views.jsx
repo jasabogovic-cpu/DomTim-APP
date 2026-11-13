@@ -696,7 +696,7 @@ export function Dokumenti() {
 export function Ekipa() {
   const { profili, naloge, pojdi, me } = useData();
   const [ponastavi, setPonastavi] = useState(null);
-  const pisarna = me?.vloga === 'vodja' || me?.vloga === 'pisarna';
+  const pisarna = !!me?.lahko_ponastavi_gesla;
   const mesecZac = danes(); mesecZac.setDate(1);
   return (
     <div className="stran">

@@ -1,5 +1,5 @@
 // Pisarna nastavi zaposlenemu novo začasno geslo (ko ga pozabi).
-// Kliče ga prijavljen uporabnik z vlogo vodja/pisarna: { uporabnik_id } → { geslo }
+// Kliče ga prijavljen uporabnik s pravico profili.lahko_ponastavi_gesla: { uporabnik_id } → { geslo }
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
 const sb = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
@@ -19,8 +19,8 @@ Deno.serve(async (req) => {
   const jwt = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '');
   const { data: u } = await sb.auth.getUser(jwt);
   if (!u?.user) return odg({ napaka: 'Neprijavljen' }, 401);
-  const { data: jaz } = await sb.from('profili').select('id, vloga, aktiven').eq('id', u.user.id).single();
-  if (!jaz?.aktiven || !['vodja', 'pisarna'].includes(jaz.vloga)) return odg({ napaka: 'Gesla lahko ponastavlja samo pisarna' }, 403);
+  const { data: jaz } = await sb.from('profili').select('id, aktiven, lahko_ponastavi_gesla').eq('id', u.user.id).single();
+  if (!jaz?.aktiven || !jaz.lahko_ponastavi_gesla) return odg({ napaka: 'Nimaš pravice za ponastavljanje gesel' }, 403);
 
   const { uporabnik_id } = await req.json().catch(() => ({}));
   if (!uporabnik_id || typeof uporabnik_id !== 'string') return odg({ napaka: 'Napačna zahteva' }, 400);
