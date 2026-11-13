@@ -4,7 +4,7 @@ import {
   fDatum, fDatumKratko, fUra, fRelativno, fVelikost, fMinute, isoDan, danes, zamuja, rokDanes, dniDo, sortNaloge, varnoIme, mapsUrl, dodeljeni, jeDodeljen, krajNaloga, stisniSliko,
 } from './lib.js';
 import { useData, Status, Prio, Kat, Avatar, Avatarji, Prazno, Kartica, Modal, Polje, KatIk, MapaIk } from './ui.jsx';
-import { CalendarDays, Clock, AlertTriangle, HardHat, Flame, History, List, Columns3, Search, Euro, Check, MapPin, Phone, Mail, User, Hand, Play, Coffee, ChevronLeft, ChevronRight, Building2, Home, Building, Inbox, Pencil, Archive, Image as ImageIk, FileText, Trash2, FolderOpen, ArrowRight, Plus, Upload, Sun, PhoneCall, Download } from 'lucide-react';
+import { CalendarDays, Clock, AlertTriangle, HardHat, Flame, History, List, Columns3, Search, Euro, Check, MapPin, Phone, Mail, User, Hand, Play, Coffee, ChevronLeft, ChevronRight, Building2, Home, Building, Inbox, Pencil, Archive, Image as ImageIk, FileText, Trash2, FolderOpen, ArrowRight, Plus, Upload, Sun, PhoneCall, Download, KeyRound } from 'lucide-react';
 import { Datoteke, odpriDatoteko } from './naloga.jsx';
 import { izracun, fEur, CenikUrejevalnik } from './delovni.jsx';
 
@@ -694,7 +694,9 @@ export function Dokumenti() {
 
 /* ---------- EKIPA ---------- */
 export function Ekipa() {
-  const { profili, naloge, pojdi } = useData();
+  const { profili, naloge, pojdi, me } = useData();
+  const [ponastavi, setPonastavi] = useState(null);
+  const pisarna = me?.vloga === 'vodja' || me?.vloga === 'pisarna';
   const mesecZac = danes(); mesecZac.setDate(1);
   return (
     <div className="stran">
@@ -711,11 +713,51 @@ export function Ekipa() {
               <span className={'vloga v-' + p.vloga}>{p.vloga === 'teren' ? 'Teren' : p.vloga === 'vodja' ? 'Vodja' : 'Pisarna'}</span>
               {p.telefon && <a href={'tel:' + p.telefon.replace(/\s/g, '')} onClick={(e) => e.stopPropagation()}><Phone size={13} className="ik" /> {p.telefon}</a>}
               <div className="oseba-stat"><div><b>{akt}</b><small>odprtih</small></div><div><b>{opr.length}</b><small>opravljenih ta mesec</small></div><div><b>{fMinute(min)}</b><small>evidentiranega dela</small></div></div>
+              {pisarna && p.id !== me.id && <button className="gumb mali" style={{ marginTop: 10 }} onClick={(e) => { e.stopPropagation(); setPonastavi(p); }}><KeyRound size={14} /> Ponastavi geslo</button>}
             </div>
           );
         })}
       </div>
+      {ponastavi && <PonastaviGeslo oseba={ponastavi} onClose={() => setPonastavi(null)} />}
     </div>
+  );
+}
+
+function PonastaviGeslo({ oseba, onClose }) {
+  const [stanje, setStanje] = useState('vprasaj'); // vprasaj | delam | narejeno
+  const [geslo, setGeslo] = useState('');
+  const [napaka, setNapaka] = useState('');
+  const izvedi = async () => {
+    setStanje('delam'); setNapaka('');
+    const { data, error } = await sb.functions.invoke('ponastavi-geslo', { body: { uporabnik_id: oseba.id } });
+    let sporocilo = data?.napaka;
+    if (error && !sporocilo) { try { sporocilo = (await error.context.json()).napaka; } catch { sporocilo = error.message; } }
+    if (sporocilo || !data?.geslo) { setNapaka(sporocilo || 'Gesla ni bilo mogoče nastaviti.'); return setStanje('vprasaj'); }
+    setGeslo(data.geslo); setStanje('narejeno');
+  };
+  return (
+    <Modal naslov={`Ponastavi geslo – ${oseba.ime}`} onClose={onClose}>
+      {stanje !== 'narejeno' ? (
+        <>
+          <p>{oseba.ime} bo dobil(a) novo začasno geslo. Staro geslo ne bo več delovalo.</p>
+          {napaka && <div className="napaka">{napaka}</div>}
+          <div className="gumbi">
+            <button className="gumb" onClick={onClose}>Prekliči</button>
+            <button className="gumb primarni" disabled={stanje === 'delam'} onClick={izvedi}>{stanje === 'delam' ? 'Nastavljam …' : 'Nastavi novo geslo'}</button>
+          </div>
+        </>
+      ) : (
+        <>
+          <p>Novo začasno geslo za <b>{oseba.ime}</b>:</p>
+          <div className="novo-geslo">{geslo}</div>
+          <p className="sivo">Sporoči ga osebno (ne po skupnem kanalu). Po prijavi naj si ga zamenja v meniju <b>Spremeni geslo</b>. Geslo je prikazano samo zdaj.</p>
+          <div className="gumbi">
+            <button className="gumb" onClick={() => { navigator.clipboard?.writeText(geslo); }}>Kopiraj</button>
+            <button className="gumb primarni" onClick={onClose}>Zapri</button>
+          </div>
+        </>
+      )}
+    </Modal>
   );
 }
 

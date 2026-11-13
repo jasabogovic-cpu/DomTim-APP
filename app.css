@@ -585,3 +585,5 @@ main, .stran, .kartica, .naloga-vrstica, .nv-glavno { min-width: 0; }
 .du-podrobno { margin-top: 10px; font-size: 13px; }
 @media (max-width: 820px) { .obdobje b { min-width: 0; } .evidenca-vrh .segment { order: 0; } .delavec-izbor { flex: 1 1 100%; } .du-dnevi { gap: 3px; } .du-dnevi b { font-size: 13px; } }
 .posiljanje { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; } .posiljanje small { font-size: 12px; overflow-wrap: anywhere; }
+
+.novo-geslo { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 24px; font-weight: 700; letter-spacing: 1px; text-align: center; padding: 14px; margin: 10px 0 14px; background: var(--ozadje-2, #eef4fb); border-radius: 10px; user-select: all; }
