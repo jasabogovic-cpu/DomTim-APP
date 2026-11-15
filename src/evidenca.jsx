@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight, Download, Printer, ChevronDown, ChevronUp, Check, Clock } from 'lucide-react';
-import { sb, isoDan, danes, fDatum, fDatumKratko, dodeljeni, krajNaloga } from './lib.js';
+import { sb, poNalogah, isoDan, danes, fDatum, fDatumKratko, dodeljeni, krajNaloga } from './lib.js';
 import { useData, Avatar, Avatarji, Prazno, Kartica } from './ui.jsx';
 
 const DNEVI = ['pon', 'tor', 'sre', 'čet', 'pet', 'sob', 'ned'];
@@ -65,7 +65,7 @@ export function Evidenca() {
   const zIds = zakljuceni.map((n) => n.id).join(',');
   useEffect(() => {
     if (!zIds) return setPostavkeZakljucenih([]);
-    sb.from('naloga_delo').select('naloga_id, ure, izvajalec_id').in('naloga_id', zIds.split(',').map(Number)).then(({ data }) => setPostavkeZakljucenih(data || []));
+    poNalogah('naloga_delo', 'id, naloga_id, ure, izvajalec_id', zIds.split(',').map(Number)).then(setPostavkeZakljucenih);
   }, [zIds, verzija]);
 
   const ljudje = (pisarna ? profili : profili.filter((p) => p.id === me.id))

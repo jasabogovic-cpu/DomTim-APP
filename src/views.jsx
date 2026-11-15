@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  sb, STATUSI, AKTIVNI, PRIORITETE, KATEGORIJE, MAPE, MAPA_IKONA, KAT_IKONA,
+  sb, poNalogah, STATUSI, AKTIVNI, PRIORITETE, KATEGORIJE, MAPE, MAPA_IKONA, KAT_IKONA,
   fDatum, fDatumKratko, fUra, fRelativno, fVelikost, fMinute, isoDan, danes, zamuja, rokDanes, dniDo, sortNaloge, varnoIme, mapsUrl, dodeljeni, jeDodeljen, krajNaloga, stisniSliko,
 } from './lib.js';
 import { useData, Status, Prio, Kat, Avatar, Avatarji, Prazno, Kartica, Modal, Polje, KatIk, MapaIk } from './ui.jsx';
@@ -768,20 +768,23 @@ export function Obracun() {
   const [izbrani, setIzbrani] = useState([]);
   const [postavke, setPostavke] = useState({ delo: [], material: [] });
   const zaRacun = naloge.filter((n) => n.status === 'opravljena' && n.za_racun);
-  const ids = zaRacun.map((n) => n.id).join(',');
-  useEffect(() => {
-    if (!ids) return;
-    const seznam = ids.split(',').map(Number);
-    Promise.all([sb.from('naloga_delo').select('*').in('naloga_id', seznam), sb.from('naloga_material').select('*').in('naloga_id', seznam)])
-      .then(([d, m]) => setPostavke({ delo: d.data || [], material: m.data || [] }));
-  }, [ids, verzija]);
-  const vsota = (n) => izracun(postavke.delo.filter((d) => d.naloga_id === n.id), postavke.material.filter((m) => m.naloga_id === n.id), n.ddv_delez_95);
-
   const faze = {
     pregled: zaRacun.filter((n) => !n.pregledano_at && !n.obracunano_at).sort((a, b) => (a.opravljeno_at || '').localeCompare(b.opravljeno_at || '')),
     izdaja: zaRacun.filter((n) => n.pregledano_at && !n.obracunano_at).sort((a, b) => a.pregledano_at.localeCompare(b.pregledano_at)),
     zaracunano: zaRacun.filter((n) => n.obracunano_at).sort((a, b) => b.obracunano_at.localeCompare(a.obracunano_at)).slice(0, 200),
   };
+  // postavke naložimo samo za naloge, ki so na zaslonu (odprti + zadnjih 200 zaračunanih)
+  const ids = [...faze.pregled, ...faze.izdaja, ...faze.zaracunano].map((n) => n.id).join(',');
+  useEffect(() => {
+    if (!ids) return;
+    const seznam = ids.split(',').map(Number);
+    let velja = true;
+    Promise.all([poNalogah('naloga_delo', '*', seznam), poNalogah('naloga_material', '*', seznam)])
+      .then(([d, m]) => velja && setPostavke({ delo: d, material: m }));
+    return () => { velja = false; };
+  }, [ids, verzija]);
+  const vsota = (n) => izracun(postavke.delo.filter((d) => d.naloga_id === n.id), postavke.material.filter((m) => m.naloga_id === n.id), n.ddv_delez_95);
+
   const seznam = faze[zavihek] || [];
   const zIzbira = zavihek === 'pregled' || zavihek === 'izdaja';
   const vrednostOdprto = [...faze.pregled, ...faze.izdaja].reduce((x, n) => x + vsota(n).skupaj, 0);

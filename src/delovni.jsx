@@ -110,10 +110,31 @@ export function ZakljuciObrazec({ n, onClose }) {
   const [niPrisoten, setNiPrisoten] = useState(false);
   const [email, setEmail] = useState(n.email_stranke || '');
   const [shranjujem, setShranjujem] = useState(false);
+  const [obnovljeno, setObnovljeno] = useState(false);
+  const [ponovi, setPonovi] = useState(0);
 
-  // začetne vrstice: obstoječe postavke ali predlog iz časa dela
+  // osnutek: kar terenec vpiše, se sproti shrani na telefon (če se aplikacija zapre ali zmanjka signala, vnos ostane)
+  const kljuc = `osnutek-zakljuci-${n.id}`;
+  const spremenjeno = useRef(false);
+  const dotik = () => { spremenjeno.current = true; };
+  const zavrziOsnutek = () => { try { localStorage.removeItem(kljuc); } catch {} };
+  useEffect(() => {
+    if (!spremenjeno.current || !delo || !mat) return;
+    try { localStorage.setItem(kljuc, JSON.stringify({ cas: Date.now(), porocilo, delo, mat, zaRacun, podpisIme, niPrisoten, email })); } catch {}
+  }, [porocilo, delo, mat, zaRacun, podpisIme, niPrisoten, email]);
+
+  // začetne vrstice: shranjen osnutek, obstoječe postavke ali predlog iz časa dela
   useEffect(() => {
     if (!post.nalozeno || delo) return;
+    try {
+      const o = JSON.parse(localStorage.getItem(kljuc) || 'null');
+      if (o && Date.now() - o.cas < 3 * 86400000 && Array.isArray(o.delo) && Array.isArray(o.mat)) {
+        setPorocilo(o.porocilo || ''); setDelo(o.delo); setMat(o.mat); setZaRacun(o.zaRacun ?? n.za_racun);
+        setPodpisIme(o.podpisIme || ''); setNiPrisoten(!!o.niPrisoten); setEmail(o.email || '');
+        spremenjeno.current = true; setObnovljeno(true);
+        return;
+      }
+    } catch {}
     if (post.delo.length) setDelo(post.delo.map((d) => ({ ...d, od: d.od?.slice(0, 5) || '', do: d.do?.slice(0, 5) || '' })));
     else {
       const zac = n.zacetek_at && isoDan(n.zacetek_at) === isoDan(zdaj) ? ura(new Date(n.zacetek_at)) : '';
@@ -122,7 +143,7 @@ export function ZakljuciObrazec({ n, onClose }) {
       setDelo(kdo.map((id) => ({ datum: isoDan(zdaj), izvajalec_id: id, od: zac, do: kon, ure: zac ? ureMed(zac, kon) : '' })));
     }
     setMat(post.material.length ? post.material.map((m) => ({ ...m })) : []);
-  }, [post.nalozeno]);
+  }, [post.nalozeno, ponovi]);
 
   const privzetaCenaDela = () => privzetaDela(cenik)?.cena ?? null;
   const posodobiDelo = (i, k, v) => setDelo((x) => x.map((d, j) => {
@@ -165,6 +186,7 @@ export function ZakljuciObrazec({ n, onClose }) {
         upd.podpis_ime = podpisIme || null; upd.podpis_at = new Date().toISOString(); upd.podpis_status = 'podpisano';
       } else if (niPrisoten) { upd.podpis_status = 'ni_prisoten'; upd.podpis_at = new Date().toISOString(); }
       r = await sb.from('naloge').update(upd).eq('id', n.id); if (r.error) throw r.error;
+      zavrziOsnutek();
       toast(`Nalog #${n.id} zaključen`); osvezi(); onClose();
       // podpisan nalog se samodejno pošlje stranki
       if (upd.podpis_status === 'podpisano' && upd.email_stranke) {
@@ -181,16 +203,21 @@ export function ZakljuciObrazec({ n, onClose }) {
         } catch (err) { toast('PDF ni bil poslan: ' + err.message + ' – pošlji ga ponovno v nalogu.', true); }
       }
       return;
-    } catch (err) { toast('Napaka: ' + err.message, true); }
+    } catch (err) {
+      const brez = navigator.onLine === false || /fetch|network/i.test(err.message || '');
+      toast(brez ? 'Ni povezave – nalog NI zaključen. Vnos je shranjen na telefonu, poskusi znova, ko bo signal.' : 'Napaka: ' + err.message, true);
+    }
     setShranjujem(false);
   };
+  const zacniZnova = () => { zavrziOsnutek(); spremenjeno.current = false; setObnovljeno(false); setPorocilo(n.porocilo || ''); setPodpisIme(n.prijavitelj || ''); setNiPrisoten(false); setEmail(n.email_stranke || ''); setZaRacun(n.za_racun); setMat(null); setDelo(null); setPonovi((x) => x + 1); };
 
   if (!delo || !mat) return <Modal naslov={`Zaključi nalog #${n.id}`} onClose={onClose}><p className="sivo">Nalagam …</p></Modal>;
   const materialCenik = cenik.filter((c) => c.tip === 'material');
 
   return (
     <Modal naslov={`Zaključi nalog #${n.id}`} onClose={onClose} siroko>
-      <form onSubmit={shrani} className="zakljuci">
+      <form onSubmit={shrani} className="zakljuci" onInput={dotik}>
+        {obnovljeno && <div className="osnutek-obvestilo"><span>Obnovljen je tvoj neshranjeni vnos. Stranka se mora podpisati ponovno.</span><button type="button" onClick={zacniZnova}>Začni znova</button></div>}
         <section>
           <h4>Opis izvedbe del *</h4>
           <textarea rows={3} required value={porocilo} onChange={(e) => setPorocilo(e.target.value)} placeholder="Kaj je bilo narejeno, ugotovitve, priporočila …" />
@@ -210,10 +237,10 @@ export function ZakljuciObrazec({ n, onClose }) {
                 <input type="time" value={d.do || ''} onChange={(e) => posodobiDelo(i, 'do', e.target.value)} aria-label="Do" />
               </div>
               <label className="ure"><input type="number" step="0.25" min="0" value={d.ure ?? ''} onChange={(e) => posodobiDelo(i, 'ure', e.target.value)} aria-label="Ure" /> h</label>
-              {delo.length > 1 && <button type="button" className="ikona-gumb" onClick={() => setDelo(delo.filter((_, j) => j !== i))} aria-label="Odstrani"><Trash2 size={16} /></button>}
+              {delo.length > 1 && <button type="button" className="ikona-gumb" onClick={() => { dotik(); setDelo(delo.filter((_, j) => j !== i)); }} aria-label="Odstrani"><Trash2 size={16} /></button>}
             </div>
           ))}
-          <button type="button" className="gumb mali" onClick={() => setDelo([...delo, { datum: isoDan(zdaj), izvajalec_id: me.id, od: '', do: '', ure: '' }])}><Plus size={14} /> Dodaj obisk / čas</button>
+          <button type="button" className="gumb mali" onClick={() => { dotik(); setDelo([...delo, { datum: isoDan(zdaj), izvajalec_id: me.id, od: '', do: '', ure: '' }]); }}><Plus size={14} /> Dodaj obisk / čas</button>
           <p className="namig">Če si moral vmes npr. po material, dodaj novo vrstico za drugi del dela (npr. 8:00–9:00 in 9:30–11:00).</p>
         </section>
 
@@ -225,10 +252,10 @@ export function ZakljuciObrazec({ n, onClose }) {
               <input list="cenik-material" value={m.naziv || ''} onChange={(e) => posodobiMat(i, 'naziv', e.target.value)} placeholder="Naziv materiala (začni tipkati)" aria-label="Material" />
               <input type="number" step="0.01" min="0" value={m.kolicina ?? ''} onChange={(e) => posodobiMat(i, 'kolicina', e.target.value)} aria-label="Količina" />
               <input value={m.enota || ''} onChange={(e) => posodobiMat(i, 'enota', e.target.value)} className="enota" aria-label="Enota" />
-              <button type="button" className="ikona-gumb" onClick={() => setMat(mat.filter((_, j) => j !== i))} aria-label="Odstrani"><Trash2 size={16} /></button>
+              <button type="button" className="ikona-gumb" onClick={() => { dotik(); setMat(mat.filter((_, j) => j !== i)); }} aria-label="Odstrani"><Trash2 size={16} /></button>
             </div>
           ))}
-          <button type="button" className="gumb mali" onClick={() => setMat([...mat, { naziv: '', kolicina: 1, enota: 'kos' }])}><Plus size={14} /> Dodaj material</button>
+          <button type="button" className="gumb mali" onClick={() => { dotik(); setMat([...mat, { naziv: '', kolicina: 1, enota: 'kos' }]); }}><Plus size={14} /> Dodaj material</button>
           {!pisarna && <p className="namig">Cene doda računovodstvo, ti vpiši samo, kaj in koliko je bilo porabljeno.</p>}
         </section>
 
@@ -242,7 +269,7 @@ export function ZakljuciObrazec({ n, onClose }) {
           <label className="potrditev mt-s"><input type="checkbox" checked={niPrisoten} onChange={(e) => { setNiPrisoten(e.target.checked); setPodpis(null); }} /> <UserX size={15} /> Stranka ni prisotna – brez podpisa</label>
         </section>
 
-        <div className="polje"><span>Način</span><NacinIzbira zaRacun={zaRacun} onChange={setZaRacun} /></div>
+        <div className="polje"><span>Način</span><NacinIzbira zaRacun={zaRacun} onChange={(v) => { dotik(); setZaRacun(v); }} /></div>
         <div className="gumbi"><button type="button" className="gumb" onClick={onClose}>Prekliči</button><button className="gumb uspeh" disabled={shranjujem}>{shranjujem ? 'Shranjujem …' : <><Check size={16} /> Zaključi nalog</>}</button></div>
       </form>
     </Modal>

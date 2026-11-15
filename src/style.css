@@ -587,3 +587,8 @@ main, .stran, .kartica, .naloga-vrstica, .nv-glavno { min-width: 0; }
 .posiljanje { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; } .posiljanje small { font-size: 12px; overflow-wrap: anywhere; }
 
 .novo-geslo { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 24px; font-weight: 700; letter-spacing: 1px; text-align: center; padding: 14px; margin: 10px 0 14px; background: var(--ozadje-2, #eef4fb); border-radius: 10px; user-select: all; }
+
+.brez-povezave { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-radius: 10px; background: #fef3c7; color: #92400e; font-size: 14px; font-weight: 600; }
+.nalaganje p { text-align: center; line-height: 1.5; }
+.osnutek-obvestilo { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 12px; border-radius: 10px; background: #ecfdf5; color: #065f46; font-size: 13.5px; margin-bottom: 12px; }
+.osnutek-obvestilo button { background: none; border: 0; color: inherit; text-decoration: underline; font: inherit; cursor: pointer; padding: 0; white-space: nowrap; }

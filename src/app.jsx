@@ -1,9 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { sb, AKTIVNI, jeDodeljen } from './lib.js';
+import { sb, AKTIVNI, jeDodeljen, vseVrstice, poNazivu } from './lib.js';
 import { DataCtx, Avatar } from './ui.jsx';
 import { NalogaObrazec, NalogaPodrobno, HitriVnos } from './naloga.jsx';
-import { LayoutDashboard, ListChecks, ClipboardList, CalendarDays, Building2, Flame, FolderOpen, Users, LogOut, Menu, Plus, X, PhoneCall, Receipt, Clock, KeyRound } from 'lucide-react';
+import { LayoutDashboard, ListChecks, ClipboardList, CalendarDays, Building2, Flame, FolderOpen, Users, LogOut, Menu, Plus, X, PhoneCall, Receipt, Clock, KeyRound, WifiOff } from 'lucide-react';
 
 const Logo = ({ visina = 34 }) => <img src="ikone/logo.png" alt="DOMtim" className="logo-slika" style={{ height: visina }} />;
 import { Pregled, Naloge, Moje, Plan, Objekti, Naprave, Dokumenti, Ekipa, Obracun } from './views.jsx';
@@ -41,7 +41,7 @@ function Namesti({ vedno }) {
         <b>Namesti DOMtim na telefon</b>
         {iosNavodila
           ? <small>V Safariju tapni <b>Deli</b> (kvadrat s puščico ⬆) spodaj, nato <b>»Dodaj na začetni zaslon«</b>.</small>
-          : <small>Odpiraj jo z ikono na začetnem zaslonu, brez povezave.</small>}
+          : <small>Odpiraj jo z ikono na začetnem zaslonu, kot vsako drugo aplikacijo.</small>}
       </div>
       {!iosNavodila && <button className="gumb primarni mali" onClick={namesti}>Namesti</button>}
       {!vedno && <button className="ikona-gumb" onClick={skrij} aria-label="Skrij"><X size={18} /></button>}
@@ -100,6 +100,8 @@ function Aplikacija({ session }) {
   const [obvestila, setObvestila] = useState([]);
   const [meni, setMeni] = useState(false);
   const [hitri, setHitri] = useState(false);
+  const [tezava, setTezava] = useState(null); // 'povezava' | 'profil'
+  const [brezPovezave, setBrezPovezave] = useState(() => navigator.onLine === false);
 
   const toast = useCallback((t, napaka) => {
     const id = Math.random();
@@ -119,16 +121,33 @@ function Aplikacija({ session }) {
   }, [pot]);
 
   const osvezi = useCallback(async () => {
-    const [p, o, n, l] = await Promise.all([
-      sb.from('profili').select('*').order('ime'),
-      sb.from('objekti').select('*').order('naziv'),
-      sb.from('naprave').select('*'),
-      sb.from('naloge').select('*').order('id', { ascending: false }),
-    ]);
-    setPodatki({ profili: p.data || [], objekti: o.data || [], naprave: n.data || [], naloge: l.data || [] });
-    setMe((p.data || []).find((x) => x.id === session.user.id) || null);
-    setVerzija((v) => v + 1);
+    try {
+      const [p, o, n, l] = await Promise.all([
+        sb.from('profili').select('*').order('ime'),
+        sb.from('objekti').select('*').order('naziv'),
+        sb.from('naprave').select('*'),
+        vseVrstice(() => sb.from('naloge').select('*').order('id', { ascending: false })),
+      ]);
+      const napaka = p.error || o.error || n.error || l.error;
+      if (napaka) throw napaka;
+      setPodatki({ profili: p.data || [], objekti: (o.data || []).sort(poNazivu), naprave: n.data || [], naloge: l.data || [] });
+      const jaz = (p.data || []).find((x) => x.id === session.user.id) || null;
+      setMe(jaz);
+      setTezava(jaz ? null : 'profil');
+      setVerzija((v) => v + 1);
+    } catch (e) {
+      console.warn('osvežitev ni uspela', e);
+      setTezava('povezava'); // že naloženi podatki ostanejo na zaslonu
+    }
   }, [session.user.id]);
+
+  // povezava z internetom
+  useEffect(() => {
+    const ni = () => setBrezPovezave(true);
+    const je = () => { setBrezPovezave(false); osvezi(); };
+    window.addEventListener('offline', ni); window.addEventListener('online', je);
+    return () => { window.removeEventListener('offline', ni); window.removeEventListener('online', je); };
+  }, [osvezi]);
 
   useEffect(() => { osvezi(); }, [osvezi]);
 
@@ -165,7 +184,15 @@ function Aplikacija({ session }) {
     hitriVnos: () => setHitri(true),
   }), [podatki, me, verzija, toast, osvezi, pojdi]);
 
-  if (!me) return <div className="nalaganje"><Logo visina={72} /><p>Nalagam …</p></div>;
+  if (!me) return (
+    <div className="nalaganje">
+      <Logo visina={72} />
+      {!tezava && <p>Nalagam …</p>}
+      {tezava === 'povezava' && <><p><b>Ni povezave s strežnikom.</b><br />Preveri internet in poskusi znova.</p><button className="gumb primarni" onClick={() => { setTezava(null); osvezi(); }}>Poskusi znova</button></>}
+      {tezava === 'profil' && <><p><b>Tvoj račun ni aktiven.</b><br />Sporoči v pisarno, da ti uredijo dostop.</p></>}
+      {tezava && <button className="gumb mt-s" onClick={() => sb.auth.signOut()}>Odjava</button>}
+    </div>
+  );
 
   const teren = me.vloga === 'teren';
   const stran = pot.stran || (teren ? 'moje' : 'pregled');
@@ -221,7 +248,7 @@ function Aplikacija({ session }) {
           <button className="ikona-gumb plus" onClick={() => teren ? setNovaPriv({ dodeljeno_id: me.id, vir: 'osebno' }) : setHitri(true)}><Plus size={22} /></button>
         </div>
         {meni && <div className="meni-ozadje" onClick={() => setMeni(false)} />}
-        <main><div className="namesti-ovoj"><Namesti /><ObvestilaPasica obv={obv} /></div>{vsebina}</main>
+        <main><div className="namesti-ovoj">{brezPovezave && <div className="brez-povezave"><WifiOff size={17} /> Ni internetne povezave. Spremembe se ne bodo shranile, dokler se povezava ne vrne.</div>}<Namesti /><ObvestilaPasica obv={obv} /></div>{vsebina}</main>
         <nav className="spodnja">
           {MOBILNO.map((k) => { const x = NAV.find((n) => n[0] === k); return (
             <a key={k} href={'#/' + k} className={stran === k ? 'on' : ''}><span>{React.createElement(x[1], { size: 21 })}</span>{x[2].split(' ')[0]}{x[3] > 0 && <i>{x[3]}</i>}</a>

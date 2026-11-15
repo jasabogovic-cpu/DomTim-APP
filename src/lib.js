@@ -97,3 +97,29 @@ export async function stisniSliko(file, najvec = 1600, kakovost = 0.78) {
     return new File([blob], file.name.replace(/\.[^.]+$/, '') + '.jpg', { type: 'image/jpeg' });
   } catch { return file; }
 }
+
+/* ---------- objekti: prikaz in razvrščanje (Kettejeva 6 pred Kettejeva 10, Č za C) ---------- */
+export const objektIme = (o) => (o.naslov && o.naslov !== o.naziv ? `${o.naziv} – ${o.naslov}` : o.naziv);
+export const poNazivu = (a, b) => (a.naziv || '').localeCompare(b.naziv || '', 'sl', { numeric: true, sensitivity: 'base' });
+
+/* ---------- branje več kot 1000 vrstic (Supabase vrne največ 1000 naenkrat) ---------- */
+export async function vseVrstice(zgradi, kos = 1000) {
+  let vse = [];
+  for (let i = 0; ; i += kos) {
+    const { data, error } = await zgradi().range(i, i + kos - 1);
+    if (error) return { data: null, error };
+    vse = vse.concat(data || []);
+    if (!data || data.length < kos) break;
+  }
+  return { data: vse, error: null };
+}
+/** Postavke (delo/material) za seznam nalogov – po delih, da naslov zahteve ni predolg. */
+export async function poNalogah(tabela, stolpci, ids) {
+  let vse = [];
+  for (let i = 0; i < ids.length; i += 150) {
+    const del = ids.slice(i, i + 150);
+    const { data } = await vseVrstice(() => sb.from(tabela).select(stolpci).in('naloga_id', del).order('id'));
+    vse = vse.concat(data || []);
+  }
+  return vse;
+}

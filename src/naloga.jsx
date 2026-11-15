@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   sb, STATUSI, PRIORITETE, KATEGORIJE, VIRI, MAPE, MAPA_IKONA, fDatum, fCas, fRelativno, fVelikost, fMinute,
-  isoDan, zamuja, varnoIme, mapsUrl, dodeljeni, jeDodeljen, stisniSliko,
+  isoDan, zamuja, varnoIme, mapsUrl, dodeljeni, jeDodeljen, stisniSliko, objektIme,
 } from './lib.js';
 import { useData, Status, Prio, Kat, Avatar, Avatarji, Modal, Polje, MapaIk, DelavciIzbira, NacinIzbira } from './ui.jsx';
 import { ZakljuciObrazec, DelovniNalog, izracun, fEur } from './delovni.jsx';
@@ -89,7 +89,7 @@ export function NalogaObrazec({ naloga, privzeto = {}, onClose, onSaved }) {
         <Polje label="Objekt">
           <select value={f.objekt_id} onChange={(e) => setF({ ...f, objekt_id: e.target.value, naprava_id: '' })}>
             <option value="">— brez objekta —</option>
-            {objekti.map((o) => <option key={o.id} value={o.id}>{o.naziv} ({o.naslov})</option>)}
+            {objekti.map((o) => <option key={o.id} value={o.id}>{objektIme(o)}</option>)}
             <option value="drugo">➕ Drugo / nova stranka …</option>
           </select>
         </Polje>
@@ -440,7 +440,7 @@ export function HitriVnos({ onClose, onVec, onSaved }) {
         <Polje label="Objekt">
           <select value={f.objekt_id} onChange={set('objekt_id')}>
             <option value="">— izberi objekt —</option>
-            {objekti.map((o) => <option key={o.id} value={o.id}>{o.naziv} – {o.naslov}</option>)}
+            {objekti.map((o) => <option key={o.id} value={o.id}>{objektIme(o)}</option>)}
             <option value="drugo">➕ Drugo / nova stranka …</option>
           </select>
         </Polje>
