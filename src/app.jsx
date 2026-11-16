@@ -91,7 +91,7 @@ function beriHash() {
 
 function Aplikacija({ session }) {
   const [me, setMe] = useState(null);
-  const [podatki, setPodatki] = useState({ profili: [], objekti: [], naprave: [], naloge: [] });
+  const [podatki, setPodatki] = useState({ profili: [], objekti: [], naprave: [], naloge: [], kos: [] });
   const [verzija, setVerzija] = useState(0);
   const [pot, setPot] = useState(beriHash());
   const [odprtaNaloga, setOdprtaNaloga] = useState(null);
@@ -130,7 +130,7 @@ function Aplikacija({ session }) {
       ]);
       const napaka = p.error || o.error || n.error || l.error;
       if (napaka) throw napaka;
-      setPodatki({ profili: p.data || [], objekti: (o.data || []).sort(poNazivu), naprave: n.data || [], naloge: l.data || [] });
+      setPodatki({ profili: p.data || [], objekti: (o.data || []).sort(poNazivu), naprave: n.data || [], naloge: (l.data || []).filter((x) => !x.izbrisano_at), kos: (l.data || []).filter((x) => x.izbrisano_at) });
       const jaz = (p.data || []).find((x) => x.id === session.user.id) || null;
       setMe(jaz);
       setTezava(jaz ? null : 'profil');

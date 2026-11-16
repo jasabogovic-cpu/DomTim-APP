@@ -87,7 +87,7 @@ export function NalogaObrazec({ naloga, privzeto = {}, onClose, onSaved }) {
           <input autoFocus value={f.naslov} onChange={set('naslov')} placeholder="npr. Ne dela ogrevanje v stanovanju 5" required />
         </Polje>
         <Polje label="Objekt">
-          <select value={f.objekt_id} onChange={(e) => setF({ ...f, objekt_id: e.target.value, naprava_id: '' })}>
+          <select value={f.objekt_id} onChange={(e) => { const izb = objekti.find((o) => String(o.id) === e.target.value); const prej = objekti.find((o) => String(o.id) === String(f.objekt_id)); setF({ ...f, objekt_id: e.target.value, naprava_id: '', email_stranke: !f.email_stranke || f.email_stranke === (prej?.email_nalogi || '') ? (izb?.email_nalogi || '') : f.email_stranke }); }}>
             <option value="">— brez objekta —</option>
             {objekti.map((o) => <option key={o.id} value={o.id}>{objektIme(o)}</option>)}
             <option value="drugo">➕ Drugo / nova stranka …</option>
@@ -195,9 +195,9 @@ export function NalogaPodrobno({ id, onClose }) {
     setPosiljam(false);
   };
   const izbrisi = async () => {
-    if (!confirm(`Izbrišem nalog #${n.id}? Tega ni mogoče razveljaviti.`)) return;
-    const { error } = await sb.from('naloge').delete().eq('id', n.id);
-    if (error) toast('Napaka: ' + error.message, true); else { toast('Nalog izbrisan'); onClose(); }
+    if (!confirm(`Nalog #${n.id} premaknem v koš? V 30 dneh ga lahko obnoviš (Delovni nalogi → Koš).`)) return;
+    const { error } = await sb.from('naloge').update({ izbrisano_at: new Date().toISOString(), izbrisal_id: me.id }).eq('id', n.id);
+    if (error) toast('Napaka: ' + error.message, true); else { toast('Nalog je v košu'); osvezi(); onClose(); }
   };
 
   return (

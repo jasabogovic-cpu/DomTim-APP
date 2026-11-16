@@ -592,3 +592,7 @@ main, .stran, .kartica, .naloga-vrstica, .nv-glavno { min-width: 0; }
 .nalaganje p { text-align: center; line-height: 1.5; }
 .osnutek-obvestilo { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 12px; border-radius: 10px; background: #ecfdf5; color: #065f46; font-size: 13.5px; margin-bottom: 12px; }
 .osnutek-obvestilo button { background: none; border: 0; color: inherit; text-decoration: underline; font: inherit; cursor: pointer; padding: 0; white-space: nowrap; }
+
+.kos-vrstica { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-top: 1px solid var(--rob, #e5e7eb); flex-wrap: wrap; }
+.kos-vrstica small { display: block; color: #6b7280; margin-top: 2px; }
+.kos-gumbi { display: flex; gap: 6px; }

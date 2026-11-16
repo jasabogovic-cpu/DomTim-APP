@@ -4,9 +4,10 @@ import {
   fDatum, fDatumKratko, fUra, fRelativno, fVelikost, fMinute, isoDan, danes, zamuja, rokDanes, dniDo, sortNaloge, varnoIme, mapsUrl, dodeljeni, jeDodeljen, krajNaloga, stisniSliko,
 } from './lib.js';
 import { useData, Status, Prio, Kat, Avatar, Avatarji, Prazno, Kartica, Modal, Polje, KatIk, MapaIk } from './ui.jsx';
-import { CalendarDays, Clock, AlertTriangle, HardHat, Flame, History, List, Columns3, Search, Euro, Check, MapPin, Phone, Mail, User, Hand, Play, Coffee, ChevronLeft, ChevronRight, Building2, Home, Building, Inbox, Pencil, Archive, Image as ImageIk, FileText, Trash2, FolderOpen, ArrowRight, Plus, Upload, Sun, PhoneCall, Download, KeyRound } from 'lucide-react';
+import { CalendarDays, Clock, AlertTriangle, HardHat, Flame, History, List, Columns3, Search, Euro, Check, MapPin, Phone, Mail, User, Hand, Play, Coffee, ChevronLeft, ChevronRight, Building2, Home, Building, Inbox, Pencil, Archive, Image as ImageIk, FileText, Trash2, FolderOpen, ArrowRight, Plus, Upload, Sun, PhoneCall, Download, KeyRound, RotateCcw, Printer } from 'lucide-react';
 import { Datoteke, odpriDatoteko } from './naloga.jsx';
 import { izracun, fEur, CenikUrejevalnik } from './delovni.jsx';
+import { natisni, esc } from './evidenca.jsx';
 
 /* ---------- Vrstica naloga ---------- */
 export function NalogaVrstica({ n, kompaktno }) {
@@ -119,7 +120,8 @@ export function Pregled() {
 
 /* ---------- NALOGE (seznam + tabla) ---------- */
 export function Naloge({ filterZacetni = {} }) {
-  const { naloge, profili, objekti, novaNaloga, odpriNalogo } = useData();
+  const { naloge, profili, objekti, novaNaloga, odpriNalogo, kos, me } = useData();
+  const [kosOdprt, setKosOdprt] = useState(false);
   const [pogled, setPogled] = useState(() => localStorage.getItem('pogled') || 'seznam');
   const [f, setF] = useState({ iskanje: '', status: 'aktivne', kategorija: '', dodeljeno: '', objekt: '', prioriteta: '', zamuja: false, za_racun: false, ...filterZacetni });
   useEffect(() => { setF((x) => ({ ...x, ...filterZacetni, status: filterZacetni.status || 'aktivne' })); }, [JSON.stringify(filterZacetni)]);
@@ -159,9 +161,11 @@ export function Naloge({ filterZacetni = {} }) {
             <button className={pogled === 'seznam' ? 'on' : ''} onClick={() => setPogled('seznam')}><List size={15} className="ik" /> Seznam</button>
             <button className={pogled === 'tabla' ? 'on' : ''} onClick={() => setPogled('tabla')}><Columns3 size={15} className="ik" /> Tabla</button>
           </div>
+          {me.vloga === 'vodja' && kos.length > 0 && <button className="gumb" onClick={() => setKosOdprt(true)}><Trash2 size={15} /> Koš ({kos.length})</button>}
           <button className="gumb primarni" onClick={() => novaNaloga()}><Plus size={16} /> Nov nalog</button>
         </div>
       </div>
+      {kosOdprt && <Kos onClose={() => setKosOdprt(false)} />}
 
       <div className="filtri">
         <input className="iskanje" placeholder="Išči po naslovu, objektu, prijavitelju, št. naloga …" value={f.iskanje} onChange={set('iskanje')} />
@@ -426,11 +430,11 @@ export function Objekti({ izbran }) {
 
 function ObjektObrazec({ objekt, onClose }) {
   const { profili, toast, osvezi } = useData();
-  const [f, setF] = useState({ naziv: objekt?.naziv || '', naslov: objekt?.naslov || '', kraj: objekt?.kraj || 'Brežice', tip: objekt?.tip || 'večstanovanjska', st_enot: objekt?.st_enot || '', leto_izgradnje: objekt?.leto_izgradnje || '', upravnik_id: objekt?.upravnik_id || '', opombe: objekt?.opombe || '', narocnik: objekt?.narocnik || '', narocnik_id_st: objekt?.narocnik_id_st || '', sm: objekt?.sm || '', ddv: objekt?.ddv ?? 22 });
+  const [f, setF] = useState({ naziv: objekt?.naziv || '', naslov: objekt?.naslov || '', kraj: objekt?.kraj || 'Brežice', tip: objekt?.tip || 'večstanovanjska', st_enot: objekt?.st_enot || '', leto_izgradnje: objekt?.leto_izgradnje || '', upravnik_id: objekt?.upravnik_id || '', opombe: objekt?.opombe || '', narocnik: objekt?.narocnik || '', narocnik_id_st: objekt?.narocnik_id_st || '', sm: objekt?.sm || '', ddv: objekt?.ddv ?? 22, email_nalogi: objekt?.email_nalogi || '' });
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
   const shrani = async (e) => {
     e.preventDefault();
-    const z = { ...f, st_enot: f.st_enot || null, leto_izgradnje: f.leto_izgradnje || null, upravnik_id: f.upravnik_id || null, narocnik: f.narocnik || null, narocnik_id_st: f.narocnik_id_st || null, sm: f.sm || null, ddv: Number(f.ddv) };
+    const z = { ...f, st_enot: f.st_enot || null, leto_izgradnje: f.leto_izgradnje || null, upravnik_id: f.upravnik_id || null, narocnik: f.narocnik || null, narocnik_id_st: f.narocnik_id_st || null, sm: f.sm || null, ddv: Number(f.ddv), email_nalogi: f.email_nalogi.trim() || null };
     const { error } = objekt ? await sb.from('objekti').update(z).eq('id', objekt.id) : await sb.from('objekti').insert(z);
     if (error) return toast('Napaka: ' + error.message, true);
     toast('Shranjeno'); osvezi(); onClose();
@@ -451,8 +455,100 @@ function ObjektObrazec({ objekt, onClose }) {
         <Polje label="ID št. naročnika"><input value={f.narocnik_id_st} onChange={set('narocnik_id_st')} /></Polje>
         <Polje label="SM (stroškovno mesto)"><input value={f.sm} onChange={set('sm')} /></Polje>
         <Polje label="Privzeti DDV"><select value={f.ddv} onChange={set('ddv')}><option value={22}>22 %</option><option value={9.5}>9,5 %</option><option value={0}>0 %</option></select></Polje>
+        <Polje label="E-pošta za delovne naloge" siroko><input type="email" value={f.email_nalogi} onChange={set('email_nalogi')} placeholder="npr. predsednik etažnih lastnikov" /></Polje>
+        <p className="namig siroko">Na ta naslov gre po podpisu samodejno PDF vsakega novega naloga za ta objekt (brez cen). Pri posameznem nalogu se naslov lahko spremeni ali izbriše.</p>
         <div className="gumbi siroko"><button type="button" className="gumb" onClick={onClose}>Prekliči</button><button className="gumb primarni">Shrani</button></div>
       </form>
+    </Modal>
+  );
+}
+
+/* ---------- Koš (izbrisani nalogi, 30 dni) ---------- */
+function Kos({ onClose }) {
+  const { kos, objekti, profili, toast, osvezi } = useData();
+  const [delam, setDelam] = useState(null);
+  const obnovi = async (n) => {
+    setDelam(n.id);
+    const { error } = await sb.from('naloge').update({ izbrisano_at: null, izbrisal_id: null }).eq('id', n.id);
+    setDelam(null);
+    if (error) return toast('Napaka: ' + error.message, true);
+    toast(`Nalog #${n.id} obnovljen`); osvezi();
+  };
+  const dokoncno = async (n) => {
+    if (!confirm(`Nalog #${n.id} izbrišem DOKONČNO, skupaj z urami, materialom in komentarji? Tega ni mogoče razveljaviti.`)) return;
+    setDelam(n.id);
+    await sb.from('dokumenti').delete().eq('naloga_id', n.id);
+    const { error } = await sb.from('naloge').delete().eq('id', n.id);
+    setDelam(null);
+    if (error) return toast('Napaka: ' + error.message, true);
+    toast(`Nalog #${n.id} dokončno izbrisan`); osvezi();
+  };
+  const seznam = [...kos].sort((a, b) => b.izbrisano_at.localeCompare(a.izbrisano_at));
+  return (
+    <Modal naslov={`Koš (${kos.length})`} onClose={onClose} siroko>
+      <p className="sivo">Izbrisani nalogi ostanejo tu 30 dni, nato se izbrišejo sami.</p>
+      {!seznam.length && <Prazno ikona={Inbox}>Koš je prazen.</Prazno>}
+      {seznam.map((n) => {
+        const ostane = Math.max(0, 30 - Math.floor((Date.now() - new Date(n.izbrisano_at)) / 86400000));
+        return (
+          <div key={n.id} className="kos-vrstica">
+            <div>
+              <b><span className="st-naloga">#{n.id}</span> {n.naslov}</b>
+              <small>{krajNaloga(n, objekti)} · izbrisal(a) {profili.find((p) => p.id === n.izbrisal_id)?.ime || '–'}, {fDatum(n.izbrisano_at)} · še {ostane} dni</small>
+            </div>
+            <div className="kos-gumbi">
+              <button className="gumb mali" disabled={delam === n.id} onClick={() => obnovi(n)}><RotateCcw size={14} /> Obnovi</button>
+              <button className="gumb mali nevarno" disabled={delam === n.id} onClick={() => dokoncno(n)}><Trash2 size={14} /> Dokončno</button>
+            </div>
+          </div>
+        );
+      })}
+    </Modal>
+  );
+}
+
+/* ---------- Poročilo o opravljenih delih na objektu ---------- */
+function PorociloObjekta({ objekt, onClose }) {
+  const { naloge, profili } = useData();
+  const d = danes();
+  const [od, setOd] = useState(`${d.getFullYear()}-01-01`);
+  const [doD, setDoD] = useState(isoDan(d));
+  const [zneski, setZneski] = useState(true);
+  const [delam, setDelam] = useState(false);
+  const datumN = (n) => n.datum_izpolnitve || (n.opravljeno_at || '').slice(0, 10);
+  const izbrani = naloge.filter((n) => n.objekt_id === objekt.id && n.status === 'opravljena' && datumN(n) >= od && datumN(n) <= doD).sort((a, b) => datumN(a).localeCompare(datumN(b)));
+  const izpisi = async () => {
+    setDelam(true);
+    const ids = izbrani.map((n) => n.id);
+    const [delo, mat] = await Promise.all([poNalogah('naloga_delo', '*', ids), poNalogah('naloga_material', '*', ids)]);
+    setDelam(false);
+    const st = (x) => Number(x || 0).toLocaleString('sl-SI', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    let sUre = 0, sOsn = 0, sSk = 0;
+    const vrstice = izbrani.map((n) => {
+      const dN = delo.filter((x) => x.naloga_id === n.id), mN = mat.filter((x) => x.naloga_id === n.id);
+      const v = izracun(dN, mN, n.ddv_delez_95);
+      const placljivo = n.za_racun;
+      sUre += v.ure; if (placljivo) { sOsn += v.osnova; sSk += v.skupaj; }
+      const kdo = [...new Set([...dodeljeni(n), ...dN.map((x) => x.izvajalec_id)])].map((id) => profili.find((p) => p.id === id)?.ime).filter(Boolean).join(', ');
+      const material = mN.map((m) => `${m.naziv} (${st(m.kolicina).replace(/,00$/, '')} ${m.enota || ''})`).join(', ');
+      return `<tr><td>${fDatum(datumN(n))}</td><td>#${n.id}</td><td><b>${esc(n.naslov)}</b>${n.porocilo ? '<br>' + esc(n.porocilo) : ''}${material ? '<br><i>Material: ' + esc(material) + '</i>' : ''}</td><td>${esc(kdo)}</td><td class="d">${st(v.ure)}</td>${zneski ? (placljivo ? `<td class="d">${st(v.osnova)}</td><td class="d">${st(v.skupaj)}</td>` : '<td colspan="2">po pogodbi</td>') : ''}</tr>`;
+    }).join('');
+    const telo = izbrani.length
+      ? `<table><thead><tr><th>Datum</th><th>Nalog</th><th>Opravljeno delo</th><th>Izvajalci</th><th class="d">Ure</th>${zneski ? '<th class="d">Brez DDV (€)</th><th class="d">Z DDV (€)</th>' : ''}</tr></thead><tbody>${vrstice}
+         <tr class="sk"><td colspan="4">Skupaj nalogov: ${izbrani.length}</td><td class="d">${st(sUre)}</td>${zneski ? `<td class="d">${st(sOsn)}</td><td class="d">${st(sSk)}</td>` : ''}</tr></tbody></table>`
+      : '<p>V izbranem obdobju ni zaključenih del.</p>';
+    natisni(`Opravljena dela – ${objekt.naziv}`, `${objekt.naslov}, ${objekt.kraj} · obdobje ${fDatum(od)} – ${fDatum(doD)} · DOMtim d.o.o.`, telo);
+    onClose();
+  };
+  return (
+    <Modal naslov={`Poročilo – ${objekt.naziv}`} onClose={onClose}>
+      <div className="obrazec">
+        <Polje label="Od"><input type="date" value={od} onChange={(e) => setOd(e.target.value)} /></Polje>
+        <Polje label="Do"><input type="date" value={doD} onChange={(e) => setDoD(e.target.value)} /></Polje>
+        <label className="potrditev siroko"><input type="checkbox" checked={zneski} onChange={(e) => setZneski(e.target.checked)} /> Prikaži zneske</label>
+        <p className="namig siroko">Zaključenih nalogov v obdobju: {izbrani.length}. Odpre se okno za tisk, kjer lahko izbereš tudi »Shrani kot PDF«.</p>
+        <div className="gumbi siroko"><button type="button" className="gumb" onClick={onClose}>Prekliči</button><button type="button" className="gumb primarni" disabled={delam} onClick={izpisi}><Printer size={15} /> {delam ? 'Pripravljam …' : 'Natisni / PDF'}</button></div>
+      </div>
     </Modal>
   );
 }
@@ -462,6 +558,7 @@ function ObjektPodrobno({ id }) {
   const [kontakti, setKontakti] = useState([]);
   const [uredi, setUredi] = useState(false);
   const [zgodovina, setZgodovina] = useState(false);
+  const [porocilo, setPorocilo] = useState(false);
   const o = objekti.find((x) => x.id === id);
   useEffect(() => { sb.from('kontakti').select('*').eq('objekt_id', id).then(({ data }) => setKontakti(data || [])); }, [id]);
   if (!o) return null;
@@ -478,6 +575,7 @@ function ObjektPodrobno({ id }) {
       <div className="stran-glava">
         <div><h1>{o.naziv}</h1><p className="podnaslov">{o.naslov}, {o.kraj} · <a href={mapsUrl(o)} target="_blank" rel="noreferrer"><MapPin size={13} className="ik" /> zemljevid</a></p></div>
         <div className="glava-desno">
+          {me.vloga !== 'teren' && <button className="gumb" onClick={() => setPorocilo(true)}><Printer size={15} /> Poročilo</button>}
           {me.vloga !== 'teren' && <button className="gumb" onClick={() => setUredi(true)}><Pencil size={15} /> Uredi</button>}
           <button className="gumb primarni" onClick={() => novaNaloga({ objekt_id: id })}><Plus size={16} /> Nalog za ta objekt</button>
         </div>
@@ -504,6 +602,7 @@ function ObjektPodrobno({ id }) {
               {o.opombe && <><dt>Opombe</dt><dd>{o.opombe}</dd></>}
               {o.narocnik && <><dt>Naročnik</dt><dd>{o.narocnik}{o.narocnik_id_st ? <><br /><small>ID {o.narocnik_id_st}</small></> : ''}</dd></>}
               {o.sm && <><dt>SM</dt><dd>{o.sm}</dd></>}
+              {o.email_nalogi && <><dt>PDF nalogov</dt><dd>{o.email_nalogi}</dd></>}
             </dl>
           </Kartica>
           <Kartica naslov="Kontakti">
@@ -531,6 +630,7 @@ function ObjektPodrobno({ id }) {
         </div>
       </div>
       {uredi && <ObjektObrazec objekt={o} onClose={() => setUredi(false)} />}
+      {porocilo && <PorociloObjekta objekt={o} onClose={() => setPorocilo(false)} />}
     </div>
   );
 }

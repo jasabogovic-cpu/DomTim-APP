@@ -5,7 +5,7 @@ import { useData, Avatar, Avatarji, Prazno, Kartica } from './ui.jsx';
 
 const DNEVI = ['pon', 'tor', 'sre', 'čet', 'pet', 'sob', 'ned'];
 const fUre = (x) => (x ? (Math.round(x * 100) / 100).toLocaleString('sl-SI') + ' h' : '–');
-const esc = (x) => String(x ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+export const esc = (x) => String(x ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 function obdobje(vrsta, zamik) {
   const d = danes();
@@ -25,7 +25,7 @@ function prenesiCsv(ime, glava, vrstice) {
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = ime; a.click(); URL.revokeObjectURL(a.href);
 }
 
-function natisni(naslov, podnaslov, telo) {
+export function natisni(naslov, podnaslov, telo) {
   const w = window.open('', '_blank');
   if (!w) return alert('Brskalnik je blokiral novo okno. Dovoli pojavna okna za to stran.');
   w.document.write(`<!DOCTYPE html><html lang="sl"><head><meta charset="utf-8"><title>${esc(naslov)}</title><style>
@@ -56,7 +56,7 @@ export function Evidenca() {
   useEffect(() => {
     let q = sb.from('naloga_delo').select('*').gte('datum', odIso).lte('datum', doIso).order('datum').order('od');
     if (!pisarna) q = q.eq('izvajalec_id', me.id);
-    q.then(({ data }) => setVrstice(data || []));
+    q.then(({ data }) => setVrstice((data || []).filter((v) => naloge.some((n) => n.id === v.naloga_id))));
   }, [odIso, doIso, verzija]);
 
   const zakljuceni = useMemo(() => naloge.filter((n) => n.status === 'opravljena' && n.datum_izpolnitve >= odIso && n.datum_izpolnitve <= doIso
