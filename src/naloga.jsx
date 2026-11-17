@@ -83,7 +83,7 @@ export function NalogaObrazec({ naloga, privzeto = {}, onClose, onSaved }) {
   return (
     <Modal naslov={nov ? 'Nov delovni nalog' : `Uredi nalog #${naloga.id}`} onClose={onClose} siroko>
       <form onSubmit={shrani} className="obrazec">
-        <Polje label="Naslov *" siroko>
+        <Polje label="Opis dela *" siroko>
           <input autoFocus value={f.naslov} onChange={set('naslov')} placeholder="npr. Ne dela ogrevanje v stanovanju 5" required />
         </Polje>
         <Polje label="Objekt">
@@ -141,7 +141,7 @@ export function NalogaObrazec({ naloga, privzeto = {}, onClose, onSaved }) {
         <Polje label="E-pošta stranke (za PDF)">
           <input type="email" value={f.email_stranke} onChange={set('email_stranke')} placeholder="stranka@primer.si" />
         </Polje>
-        <Polje label="Opis" siroko>
+        <Polje label="Dodatne podrobnosti" siroko>
           <textarea rows={4} value={f.opis} onChange={set('opis')} placeholder="Kaj je narobe, kje točno, dostop (ključ, koda), posebnosti ..." />
         </Polje>
         <div className="polje"><span>Način</span><NacinIzbira zaRacun={f.za_racun} onChange={(v) => setF({ ...f, za_racun: v })} /></div>
