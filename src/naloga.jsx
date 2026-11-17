@@ -166,6 +166,7 @@ export function NalogaPodrobno({ id, onClose }) {
   const n = naloge.find((x) => x.id === id);
   const [uredi, setUredi] = useState(false);
   const [zakljuci, setZakljuci] = useState(false);
+  const [posiljam, setPosiljam] = useState(false);
   if (!n) return null;
   const obj = objekti.find((o) => o.id === n.objekt_id);
   const nap = naprave.find((x) => x.id === n.naprava_id);
@@ -187,7 +188,6 @@ export function NalogaPodrobno({ id, onClose }) {
     const { error } = await sb.from('naloge').update(da ? { obracunano_at: new Date().toISOString(), obracunal_id: me.id } : { obracunano_at: null, obracunal_id: null }).eq('id', n.id);
     if (error) toast('Napaka: ' + error.message, true); else toast(da ? 'Označeno kot obračunano' : 'Vrnjeno med neobračunane');
   };
-  const [posiljam, setPosiljam] = useState(false);
   const posljiPdf = async () => {
     setPosiljam(true);
     try { await posljiNalogStranki(n, { obj, nap, dod, dodVsi, ust, profili }); toast(`PDF poslan na ${n.email_stranke}`); osvezi(); }
