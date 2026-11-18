@@ -89,12 +89,19 @@ export function Evidenca() {
     natisni('Evidenca ur', `${vrsta === 'teden' ? 'Teden' : 'Mesec'}: ${o.naslov}${delavec ? ' · ' + ime(delavec) : ''}`, pov + pod);
   };
 
+  const rokOdnos = (n) => {
+    if (!n.rok) return { b: '', t: '' };
+    const r = String(n.rok).slice(0, 10), d = (n.datum_izpolnitve || '').slice(0, 10);
+    const raz = d ? Math.round((new Date(d) - new Date(r)) / 86400000) : 0;
+    const t = raz < 0 ? `${-raz} dni prej` : raz === 0 ? 'na rok' : `zamuda ${raz} dni`;
+    return { b: fDatum(r), t, k: raz < 0 ? 'zeleno' : raz === 0 ? '' : 'rdece' };
+  };
   const ureNaloga = (id) => postavkeZakljucenih.filter((r) => r.naloga_id === id).reduce((s, r) => s + Number(r.ure || 0), 0);
-  const izvoziZakljucene = () => prenesiCsv(`zakljuceni-nalogi-${odIso}_${doIso}.csv`, ['Št.', 'Datum izpolnitve', 'Naslov', 'Objekt / stranka', 'Naročnik', 'Izvajalci', 'Ure', 'Način', 'Podpis stranke'],
-    zakljuceni.map((n) => [n.id, fDatum(n.datum_izpolnitve), n.naslov, krajNaloga(n, objekti) || '', n.narocnik || '', dodeljeni(n).map(ime).join(', '), String(ureNaloga(n.id)).replace('.', ','), n.za_racun ? 'zaračuna se' : 'po pogodbi', n.podpis_status === 'podpisano' ? 'da' : n.podpis_status === 'ni_prisoten' ? 'stranka ni prisotna' : '']));
+  const izvoziZakljucene = () => prenesiCsv(`zakljuceni-nalogi-${odIso}_${doIso}.csv`, ['Št.', 'Datum izpolnitve', 'Rok', 'Rok vs. izpolnitev', 'Opis dela', 'Objekt / stranka', 'Naročnik', 'Izvajalci', 'Ure', 'Način', 'Podpis stranke'],
+    zakljuceni.map((n) => [n.id, fDatum(n.datum_izpolnitve), rokOdnos(n).b, rokOdnos(n).t, n.naslov, krajNaloga(n, objekti) || '', n.narocnik || '', dodeljeni(n).map(ime).join(', '), String(ureNaloga(n.id)).replace('.', ','), n.za_racun ? 'zaračuna se' : 'po pogodbi', n.podpis_status === 'podpisano' ? 'da' : n.podpis_status === 'ni_prisoten' ? 'stranka ni prisotna' : '']));
   const natisniZakljucene = () => natisni('Zaključeni delovni nalogi', `${vrsta === 'teden' ? 'Teden' : 'Mesec'}: ${o.naslov} · ${zakljuceni.length} nalogov${delavec ? ' · ' + ime(delavec) : ''}`,
-    `<table><tr><th>Št.</th><th>Datum</th><th>Nalog</th><th>Objekt / stranka</th><th>Izvajalci</th><th class="d">Ure</th><th>Način</th><th>Opis izvedbe</th></tr>${zakljuceni.map((n) => `<tr><td>${n.id}</td><td>${fDatum(n.datum_izpolnitve)}</td><td>${esc(n.naslov)}</td><td>${esc(krajNaloga(n, objekti))}</td><td>${esc(dodeljeni(n).map(ime).join(', '))}</td><td class="d">${fUre(ureNaloga(n.id))}</td><td>${n.za_racun ? 'zaračuna se' : 'po pogodbi'}</td><td>${esc(n.porocilo)}</td></tr>`).join('')}
-    <tr class="sk"><td colspan="5">Skupaj</td><td class="d">${fUre(zakljuceni.reduce((s, n) => s + ureNaloga(n.id), 0))}</td><td colspan="2">${zakljuceni.filter((n) => n.za_racun).length} za račun · ${zakljuceni.filter((n) => !n.za_racun).length} po pogodbi</td></tr></table>`);
+    `<table><tr><th>Št.</th><th>Opravljeno</th><th>Rok</th><th>Nalog</th><th>Objekt / stranka</th><th>Izvajalci</th><th class="d">Ure</th><th>Način</th><th>Opis izvedbe</th></tr>${zakljuceni.map((n) => `<tr><td>${n.id}</td><td>${fDatum(n.datum_izpolnitve)}</td><td>${rokOdnos(n).b}${rokOdnos(n).t ? '<br>' + rokOdnos(n).t : ''}</td><td>${esc(n.naslov)}</td><td>${esc(krajNaloga(n, objekti))}</td><td>${esc(dodeljeni(n).map(ime).join(', '))}</td><td class="d">${fUre(ureNaloga(n.id))}</td><td>${n.za_racun ? 'zaračuna se' : 'po pogodbi'}</td><td>${esc(n.porocilo)}</td></tr>`).join('')}
+    <tr class="sk"><td colspan="6">Skupaj</td><td class="d">${fUre(zakljuceni.reduce((s, n) => s + ureNaloga(n.id), 0))}</td><td colspan="2">${zakljuceni.filter((n) => n.za_racun).length} za račun · ${zakljuceni.filter((n) => !n.za_racun).length} po pogodbi</td></tr></table>`);
 
   return (
     <div className="stran">
@@ -173,13 +180,14 @@ export function Evidenca() {
         <div className="kartica brez-roba">
           {zakljuceni.length ? (
             <table className="tabela">
-              <thead><tr><th>Datum</th><th>Nalog</th><th>Objekt / stranka</th><th>Izvajalci</th><th>Ure</th><th>Način</th></tr></thead>
+              <thead><tr><th>Opravljeno</th><th>Rok</th><th>Nalog</th><th>Objekt / stranka</th><th>Izvajalci</th><th>Ure</th><th>Način</th></tr></thead>
               <tbody>
                 {zakljuceni.map((n) => {
                   const dod = dodeljeni(n).map((id) => profili.find((p) => p.id === id)).filter(Boolean);
                   return (
                     <tr key={n.id} onClick={() => odpriNalogo(n.id)}>
                       <td>{fDatumKratko(n.datum_izpolnitve)}</td>
+                      <td>{n.rok ? <>{fDatumKratko(n.rok)}<div className={'pod ' + rokOdnos(n).k}>{rokOdnos(n).t}</div></> : <span className="sivo">–</span>}</td>
                       <td><span className="st-naloga">#{n.id}</span> <b>{n.naslov}</b><div className="pod porocilo-kratko">{n.porocilo}</div></td>
                       <td>{krajNaloga(n, objekti) || <span className="sivo">–</span>}</td>
                       <td>{dod.length ? <span className="oseba"><Avatarji ljudje={dod} size={22} /> {dod.map((x) => x.ime.split(' ')[0]).join(', ')}</span> : '–'}</td>
