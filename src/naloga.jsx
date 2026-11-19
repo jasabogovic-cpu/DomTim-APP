@@ -534,12 +534,13 @@ export async function htmlNaloga(n, { obj, nap, dodVsi = [], ust, profili = [] }
   const eur = (x) => x ? fEur(x) : '';
   const prazne = (k, stolpcev, prvaSirina = 1) => Array.from({ length: Math.max(0, k) }, () => `<tr><td colspan="${prvaSirina}">&nbsp;</td>${'<td></td>'.repeat(stolpcev - 1)}</tr>`).join('');
   const bc = zaPdf; // za stranko: brez cen
-  const del = delo.map((x) => `<tr><td>${fDatum(x.datum)}</td><td>${esc(ime(x.izvajalec_id))}</td><td>${x.od ? x.od.slice(0, 5) + '–' + (x.do || '').slice(0, 5) : ''}</td><td class="d">${st(x.ure)}</td>${bc ? '' : `<td class="d">${eur(x.cena)}</td><td class="d">${eur((x.ure || 0) * (x.cena || 0))}</td>`}</tr>`).join('') + (bc ? '' : prazne(4 - delo.length, 6));
-  const mt = mat.map((x) => `<tr><td colspan="3">${esc(x.naziv)}</td><td class="d">${st(x.kolicina)} ${esc(x.enota || '')}</td>${bc ? '' : `<td class="d">${eur(x.cena)}</td><td class="d">${eur((x.kolicina || 0) * (x.cena || 0))}</td>`}</tr>`).join('') + (bc ? (mat.length ? '' : '<tr><td colspan="4" class="mali">Brez porabljenega materiala.</td></tr>') : prazne(4 - mat.length, 4, 3));
+  const del = delo.map((x) => `<tr><td>${fDatum(x.datum)}</td><td>${esc(ime(x.izvajalec_id))}</td><td>${x.od ? x.od.slice(0, 5) + '–' + (x.do || '').slice(0, 5) : ''}</td><td class="d">${st(x.ure)}</td>${bc ? '' : `<td class="d">${eur(x.cena)}</td><td class="d">${eur((x.ure || 0) * (x.cena || 0))}</td>`}</tr>`).join('') + (bc ? '' : prazne(delo.length ? 0 : 1, 6));
+  const mt = mat.map((x) => `<tr><td colspan="3">${esc(x.naziv)}</td><td class="d">${st(x.kolicina)} ${esc(x.enota || '')}</td>${bc ? '' : `<td class="d">${eur(x.cena)}</td><td class="d">${eur((x.kolicina || 0) * (x.cena || 0))}</td>`}</tr>`).join('') + (bc ? (mat.length ? '' : '<tr><td colspan="4" class="mali">Brez porabljenega materiala.</td></tr>') : prazne(mat.length ? 0 : 1, 4, 3));
   const sestavil = ime(n.pregledal_id);
   const html = `<!DOCTYPE html><html lang="sl"><head><meta charset="utf-8"><title>Delovni nalog ${n.id}</title>
 <style>
-  @page { size: A4; margin: 12mm; }
+  @page { size: A4; margin: 10mm; }
+  .sekcija { break-inside: avoid; }
   * { box-sizing: border-box; }
   body { font: 9.5pt/1.3 Arial, sans-serif; color: #000; margin: 0; }
   table { width: 100%; border-collapse: collapse; }
