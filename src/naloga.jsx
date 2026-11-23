@@ -542,7 +542,7 @@ export async function htmlNaloga(n, { obj, nap, dodVsi = [], ust, profili = [] }
   @page { size: A4; margin: 10mm; }
   .sekcija { break-inside: avoid; }
   * { box-sizing: border-box; }
-  body { font: 9.5pt/1.3 Arial, sans-serif; color: #000; margin: 0; }
+  body { font: 9.5pt/1.3 Arial, sans-serif; color: #000; margin: 0; max-width: 190mm; }
   table { width: 100%; border-collapse: collapse; }
   td, th { border: 1px solid #555; padding: 3px 5px; vertical-align: top; text-align: left; }
   th { background: #eef2f6; font-weight: bold; font-size: 8.5pt; }
@@ -584,8 +584,8 @@ export async function htmlNaloga(n, { obj, nap, dodVsi = [], ust, profili = [] }
 </table>
 ${bc ? '' : `<table class="sekcija">
   <tr class="skupaj"><td colspan="5">SKUPAJ VREDNOST STORITVE (I. delo + II. mat.) – osnova brez DDV</td><td class="d">${eur(s.osnova)}</td></tr>
-  <tr><td class="lbl">osnova za 9,5 %</td><td class="d">${eur(s.osnove[9.5])}</td><td class="lbl">znesek DDV 9,5 %</td><td class="d">${eur(s.ddv[9.5])}</td><td class="lbl">∑ osn. + DDV 9,5 %</td><td class="d">${eur(s.osnove[9.5] + s.ddv[9.5])}</td></tr>
-  <tr><td class="lbl">osnova za 22 %</td><td class="d">${eur(s.osnove[22])}</td><td class="lbl">znesek DDV 22 %</td><td class="d">${eur(s.ddv[22])}</td><td class="lbl">∑ osn. + DDV 22 %</td><td class="d">${eur(s.osnove[22] + s.ddv[22])}</td></tr>
+  ${s.osnove[9.5] ? '' : '<!--'}<tr><td class="lbl">osnova za 9,5 %</td><td class="d">${eur(s.osnove[9.5])}</td><td class="lbl">znesek DDV 9,5 %</td><td class="d">${eur(s.ddv[9.5])}</td><td class="lbl">∑ osn. + DDV 9,5 %</td><td class="d">${eur(s.osnove[9.5] + s.ddv[9.5])}</td></tr>${s.osnove[9.5] ? '' : '-->'}
+  ${s.osnove[22] || !s.osnove[9.5] ? '' : '<!--'}<tr><td class="lbl">osnova za 22 %</td><td class="d">${eur(s.osnove[22])}</td><td class="lbl">znesek DDV 22 %</td><td class="d">${eur(s.ddv[22])}</td><td class="lbl">∑ osn. + DDV 22 %</td><td class="d">${eur(s.osnove[22] + s.ddv[22])}</td></tr>${s.osnove[22] || !s.osnove[9.5] ? '' : '-->'}
   <tr class="skupaj"><td colspan="5">SKUPAJ (osnova + DDV)</td><td class="d">${eur(s.skupaj)}</td></tr>
 </table>`}
 <table class="sekcija"><caption>PRIMOPREDAJA DEL</caption>
@@ -597,6 +597,7 @@ ${bc ? '' : `<table class="sekcija"><caption>OBRAČUN DEL</caption>
   <tr><td style="height:34px">${esc(sestavil)}</td><td>${n.pregledano_at ? fDatum(n.pregledano_at) : ''}</td><td>${esc(n.stevilka_racuna)}</td></tr>
 </table>`}
 <p class="mali">Izpisano iz aplikacije DOMtim, ${new Date().toLocaleString('sl-SI')}</p>
+${zaPdf ? '' : '<script>(function(){var m=1040,h=document.body.scrollHeight;if(h>m)document.body.style.zoom=Math.max(0.72,(m-8)/h);})();<\/script>'}
 ${zaPdf ? '' : '<script>Promise.all([...document.images].map((i) => i.complete ? 1 : new Promise((r) => { i.onload = i.onerror = r; setTimeout(r, 3000); }))).then(() => setTimeout(() => window.print(), 300));<\/script>'}
 </body></html>`;
   return zaPdf ? html.replace('</style>', 'body { width: 794px; padding: 34px 38px; background: #fff; } </style>') : html;
