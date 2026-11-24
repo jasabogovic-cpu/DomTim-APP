@@ -46,7 +46,7 @@ export function NalogaObrazec({ naloga, privzeto = {}, onClose, onSaved }) {
       naslov: n.naslov || '', opis: n.opis || '', objekt_id: n.objekt_id || (n.lokacija ? 'drugo' : ''), lokacija: n.lokacija || '', naprava_id: n.naprava_id || '',
       kategorija: n.kategorija || 'vzdrževanje', prioriteta: n.prioriteta || 'normalna',
       izvajalci: dodeljeni(n), rok: n.rok || '', termin: n.termin ? toLocalInput(n.termin) : '',
-      vir: n.vir || 'telefon', prijavitelj: n.prijavitelj || '', prijavitelj_kontakt: n.prijavitelj_kontakt || '', email_stranke: n.email_stranke || '',
+      vir: n.vir || 'telefon', prijavitelj: n.prijavitelj || '', prijavitelj_kontakt: n.prijavitelj_kontakt || '', email_stranke: n.email_stranke || '', narocnik: n.narocnik || '',
       za_racun: n.za_racun ?? true,
     };
   });
@@ -67,12 +67,14 @@ export function NalogaObrazec({ naloga, privzeto = {}, onClose, onSaved }) {
       ...ostalo,
       objekt_id: drugo ? null : f.objekt_id || null, lokacija: drugo ? f.lokacija.trim() : null,
       naprava_id: f.naprava_id || null, dodeljeno_id: izvajalci[0] || null, sodelavci: izvajalci.slice(1),
-      rok: f.rok || null, termin: f.termin ? new Date(f.termin).toISOString() : null, email_stranke: f.email_stranke.trim() || null,
+      rok: f.rok || null, termin: f.termin ? new Date(f.termin).toISOString() : null, email_stranke: f.email_stranke.trim() || null, narocnik: f.narocnik.trim() || null,
     };
     if (nov && zapis.dodeljeno_id) zapis.status = 'dodeljena';
     const q = nov ? sb.from('naloge').insert(zapis).select().single() : sb.from('naloge').update(zapis).eq('id', naloga.id).select().single();
     const { data, error } = await q;
     if (error) { setShranjujem(false); return toast('Napaka: ' + error.message, true); }
+    const izbObj = objekti.find((o) => String(o.id) === String(data.objekt_id));
+    if (izbObj && zapis.narocnik && !izbObj.narocnik) { try { await sb.from('objekti').update({ narocnik: zapis.narocnik }).eq('id', izbObj.id); } catch {} }
     if (fotke.length) { try { await naloziFotografije(data, fotke, me.id); } catch (err) { toast('Nalog je shranjen, fotografije pa ne: ' + err.message, true); } }
     setShranjujem(false);
     toast(nov ? `Nalog #${data.id} ustvarjen` : 'Shranjeno');
@@ -87,7 +89,7 @@ export function NalogaObrazec({ naloga, privzeto = {}, onClose, onSaved }) {
           <input autoFocus value={f.naslov} onChange={set('naslov')} placeholder="npr. Ne dela ogrevanje v stanovanju 5" required />
         </Polje>
         <Polje label="Objekt">
-          <select value={f.objekt_id} onChange={(e) => { const izb = objekti.find((o) => String(o.id) === e.target.value); const prej = objekti.find((o) => String(o.id) === String(f.objekt_id)); setF({ ...f, objekt_id: e.target.value, naprava_id: '', email_stranke: !f.email_stranke || f.email_stranke === (prej?.email_nalogi || '') ? (izb?.email_nalogi || '') : f.email_stranke }); }}>
+          <select value={f.objekt_id} onChange={(e) => { const izb = objekti.find((o) => String(o.id) === e.target.value); const prej = objekti.find((o) => String(o.id) === String(f.objekt_id)); setF({ ...f, objekt_id: e.target.value, naprava_id: '', narocnik: !f.narocnik || f.narocnik === (prej?.narocnik || '') ? (izb?.narocnik || '') : f.narocnik, email_stranke: !f.email_stranke || f.email_stranke === (prej?.email_nalogi || '') ? (izb?.email_nalogi || '') : f.email_stranke }); }}>
             <option value="">— brez objekta —</option>
             {objekti.map((o) => <option key={o.id} value={o.id}>{objektIme(o)}</option>)}
             <option value="drugo">➕ Drugo / nova stranka …</option>
@@ -105,6 +107,9 @@ export function NalogaObrazec({ naloga, privzeto = {}, onClose, onSaved }) {
             </select>
           </Polje>
         )}
+        <Polje label="Naročnik (izpis na nalogu)">
+          <input value={f.narocnik} onChange={set('narocnik')} placeholder="npr. Etažni lastniki Bizeljska cesta 11" />
+        </Polje>
         <Polje label="Kategorija">
           <select value={f.kategorija} onChange={set('kategorija')}>
             {KATEGORIJE.map((k) => <option key={k}>{k}</option>)}
@@ -564,7 +569,7 @@ export async function htmlNaloga(n, { obj, nap, dodVsi = [], ust, profili = [] }
   <td class="naslov"><b>DELOVNI NALOG</b><span>št. ${n.id}</span></td>
 </tr></table>
 <table class="sekcija">
-  <tr><td class="lbl">Naročnik</td><td colspan="5">${esc(n.narocnik)}</td><td class="lbl">ID št.</td><td>${esc(n.narocnik_id_st)}</td></tr>
+  <tr><td class="lbl">Naročnik</td><td colspan="5">${esc(n.narocnik || (obj ? obj.naziv + (obj.naslov && obj.naslov !== obj.naziv ? ', ' + obj.naslov : '') + ', ' + obj.kraj : n.lokacija) || '')}</td><td class="lbl">ID št.</td><td>${esc(n.narocnik_id_st)}</td></tr>
   <tr><td class="lbl">Naročeno dne</td><td>${fDatum(n.created_at)}</td><td class="lbl">Začeto dne</td><td>${n.zacetek_at ? fDatum(n.zacetek_at) : ''}</td><td class="lbl">Končano dne</td><td>${n.opravljeno_at ? fDatum(n.opravljeno_at) : ''}</td>${bc ? '<td colspan="2"></td>' : `<td class="lbl">SM</td><td>${esc(n.sm)}</td>`}</tr>
   <tr><td class="lbl">Datum izpolnitve</td><td>${n.datum_izpolnitve ? fDatum(n.datum_izpolnitve) : ''}</td>${bc ? '<td colspan="4"></td>' : `<td class="lbl">Način</td><td colspan="3">${n.za_racun ? 'Zaračuna se' : 'Delo po pogodbi'}</td>`}<td class="lbl">E-pošta</td><td>${esc(n.email_stranke)}</td></tr>
   <tr><td class="lbl">Objekt / stan. / posl. pr.</td><td colspan="5">${obj ? esc(obj.naziv + ', ' + obj.naslov + ', ' + obj.kraj) : esc(n.lokacija)}${nap ? '<br><span class="mali">' + esc(nap.tip + ' ' + (nap.proizvajalec || '') + ' ' + (nap.model || '')) + '</span>' : ''}</td>${bc ? '<td colspan="2"></td>' : `<td class="lbl">DDV</td><td>${s.delez95 >= 100 ? '9,5 %' : s.delez95 <= 0 ? '22 %' : String(s.delez95).replace('.', ',') + ' % po 9,5 %'}</td>`}</tr>
